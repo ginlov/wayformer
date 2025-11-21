@@ -166,7 +166,13 @@ class SceneEncoder(torch.nn.Module):
         agent_histories: torch.Tensor, # B x A x T_hist x 1 x D
         agent_interactions: torch.Tensor, # B x A x T_hist x S_i x D
         road_graphs: torch.Tensor, # B x A x 1 x S_r x D
-        traffic_lights: torch.Tensor # B x A x T_hist x S_tls x D
+        traffic_lights: torch.Tensor, # B x A x T_hist x S_tls x D
+        agent_positional_encodings: torch.Tensor | None =None, # B x A x T_hist x 1 x D
+        agent_interaction_positional_encodings: torch.Tensor | None =None, # B x A x 
+                                                                            # T_hist x S_i x D
+        road_positional_encodings: torch.Tensor | None =None, # B x A x 1 x S_r x D
+        traffic_light_positional_encodings: torch.Tensor | None =None # B x A x T_hist x S_tls x D
+
     ) -> torch.Tensor: # B x A x sequence_length x D
         """
         Forward pass for the SceneEncoder.
@@ -182,7 +188,11 @@ class SceneEncoder(torch.nn.Module):
             agent_histories,
             agent_interactions,
             road_graphs,
-            traffic_lights
+            traffic_lights,
+            agent_positional_encodings, # B x A x T_hist x 1 x D
+            agent_interaction_positional_encodings, # B x A x T_hist x S_i x D
+            road_positional_encodings, # B x A x 1 x S_r x D
+            traffic_light_positional_encodings # B x A x T_hist x S_tls x D
         )
 
 class EncoderLayer(torch.nn.Module):

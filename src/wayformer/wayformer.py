@@ -84,13 +84,13 @@ class Wayformer(torch.nn.Module):
             agent_inter,
             road,
             traffic_light,
-            self.agent_pos_encoder.unsqueeze(0).expand(B, A, -1, -1) \
+            self.agent_pos_encoder.unsqueeze(0).unsqueeze(0).expand(B, A, -1, -1, -1) \
                         if self.agent_pos_encoder is not None else None,
-            self.agent_inter_pos_encoder.unsqueeze(0).expand(B, A, -1, -1) \
+            self.agent_inter_pos_encoder.unsqueeze(0).unsqueeze(0).expand(B, A, -1, -1, -1) \
                         if self.agent_inter_pos_encoder is not None else None,
-            self.road_pos_encoder.unsqueeze(0).expand(B, A, -1, -1) \
+            self.road_pos_encoder.unsqueeze(0).unsqueeze(0).expand(B, A, -1, -1, -1) \
                         if self.road_pos_encoder is not None else None,
-            self.trafic_light_pos_encoder.unsqueeze(0).expand(B, A, -1, -1) \
+            self.trafic_light_pos_encoder.unsqueeze(0).unsqueeze(0).expand(B, A, -1, -1, -1) \
                         if self.trafic_light_pos_encoder is not None else None,
         ) # [B*A,(), D_model]
 

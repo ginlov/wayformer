@@ -4,8 +4,9 @@ import pytest
 
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
-print(parent)
-sys.path.append(parent)
+grandparent = os.path.dirname(parent)
+print(grandparent)
+sys.path.append(grandparent)
 
 import torch
 from src.wayformer.encoders import Encoder, LatentEncoder, LateFusionSceneEncoder, SceneEncoder
