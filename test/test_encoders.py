@@ -8,7 +8,7 @@ print(parent)
 sys.path.append(parent)
 
 import torch
-from src.wayformer.layers import Encoder, LatentEncoder, LateFusionSceneEncoder, SceneEncoder
+from src.wayformer.encoders import Encoder, LatentEncoder, LateFusionSceneEncoder, SceneEncoder
 
 ###############################################
 # TEST ENCODER                                #
@@ -82,7 +82,8 @@ def test_latefusion_scene_encoder_output_shape():
     road_graphs = torch.randn(batch_size, num_agents, 1, s_r, d_model)
     traffic_lights = torch.randn(batch_size, num_agents, t_hist, s_tls, d_model)
     out = encoder(agent_histories, agent_interactions, road_graphs, traffic_lights)
-    assert out.shape[:2] == (batch_size, num_agents)
+    assert out.shape[0] == batch_size * num_agents
+    assert out.shape[-1] == d_model
 
 def test_latefusion_scene_encoder_with_positional_encodings():
     """
@@ -105,7 +106,8 @@ def test_latefusion_scene_encoder_with_positional_encodings():
         agent_histories, agent_interactions, road_graphs, traffic_lights,
         agent_pos_enc, agent_int_pos_enc, road_pos_enc, traffic_light_pos_enc
     )
-    assert out.shape[:2] == (batch_size, num_agents)
+    assert out.shape[0] == batch_size * num_agents
+    assert out.shape[-1] == d_model
 
 ###############################################
 # TEST SCENE ENCODER                         #
@@ -127,7 +129,8 @@ def test_scene_encoder_latefusion_output_shape():
     traffic_lights = torch.randn(batch_size, num_agents, t_hist, s_tls, d_model)
     out = encoder(agent_histories, agent_interactions, road_graphs, traffic_lights)
     expected_seq_len = agent_histories.shape[2] + road_graphs.shape[3] + agent_interactions.shape[3] + traffic_lights.shape[3]
-    assert out.shape[:2] == (batch_size, num_agents)
+    assert out.shape[0] == batch_size * num_agents
+    assert out.shape[-1] == d_model
 
 def test_scene_encoder_invalid_fusion():
     """

@@ -1,6 +1,7 @@
 import torch
 from typing import Literal
 from src.wayformer.utils import init_weights
+from src.wayformer.factories import get_multihead_attention, build_positional_embedding
 
 class LateFusionSceneEncoder(torch.nn.Module):
     def __init__(self,
@@ -79,41 +80,38 @@ class LateFusionSceneEncoder(torch.nn.Module):
         S_tls = traffic_lights.shape[3]
         
         # Agent history encoding
-        agent_histories = agent_histories.view(B, A * T_hist, D)
+        agent_histories = agent_histories.view(B * A, T_hist, D)
         agent_positional_encodings = None if agent_positional_encodings is None\
-                                            else agent_positional_encodings.view(B, A * T_hist, D)
-        agent_encoding = self.agent_hist_encoder(agent_histories, agent_positional_encodings)
-        agent_encoding = agent_encoding.view(B, A, -1)
+                                            else agent_positional_encodings.view(B * A, T_hist, D)
+        agent_encoding = self.agent_hist_encoder(agent_histories, agent_positional_encodings) # B*A x T_hist x D
 
         # Road graph encoding
-        road_graphs = road_graphs.view(B, A * S_r, D)
+        road_graphs = road_graphs.view(B * A, S_r, D)
         road_positional_encodings = None if road_positional_encodings is None\
-                                            else road_positional_encodings.view(B, A * S_r, D)
-        road_encoding = self.road_encoder(road_graphs, road_positional_encodings)
-        road_encoding = road_encoding.view(B, A, -1)
+                                            else road_positional_encodings.view(B * A, S_r, D)
+        road_encoding = self.road_encoder(road_graphs, road_positional_encodings) # B*A x S_r x D
 
         # Agent interaction encoding
-        agent_interactions = agent_interactions.view(B, A * S_i * T_hist, D)
+        agent_interactions = agent_interactions.view(B * A, S_i * T_hist, D)
         agent_interaction_positional_encodings = None if agent_interaction_positional_encodings is None \
-                                                        else agent_interaction_positional_encodings.view(B, A * S_i * T_hist, D)
+                                                        else agent_interaction_positional_encodings.view(B * A, S_i * T_hist, D)
         agent_int_encoding = self.agent_int_encoder(
             agent_interactions,
             agent_interaction_positional_encodings
-        )
-        agent_int_encoding = agent_int_encoding.view(B, A, -1)
+        ) # B*A x (S_i * T_hist) x D
 
         # Traffic light encoding
-        traffic_lights = traffic_lights.view(B, A * S_tls * T_hist, D)
+        traffic_lights = traffic_lights.view(B * A, S_tls * T_hist, D)
         traffic_light_positional_encodings = None if traffic_light_positional_encodings is None \
-                                                    else traffic_light_positional_encodings.view(B, A * S_tls * T_hist, D)
+                                                    else traffic_light_positional_encodings.view(B * A, S_tls * T_hist, D)
         traffic_light_encoding = self.traffic_light_encoder(
             traffic_lights,
             traffic_light_positional_encodings
-        )
-        traffic_light_encoding = traffic_light_encoding.view(B, A, -1)
+        ) # B*A x (S_tls * T_hist) x D
+        
         return torch.cat(
-            [agent_encoding, road_encoding, agent_int_encoding, traffic_light_encoding], dim=2
-        ) # B x A x ()
+            [agent_encoding, road_encoding, agent_int_encoding, traffic_light_encoding], dim=1
+        ) # (B * A) x () x D
 
 class EarlyFusionSceneEncoder(torch.nn.Module):
     pass
@@ -186,7 +184,6 @@ class SceneEncoder(torch.nn.Module):
             road_graphs,
             traffic_lights
         )
-
 
 class EncoderLayer(torch.nn.Module):
     """
@@ -423,27 +420,6 @@ class LatentEncoder(torch.nn.Module):
             output = layer(output, src, src, positional_encoding)
         return output
 
-class TrajectoryDecoder():
-    """
-    Trajectory Decoder module for generating future trajectories based on encoded features.
-    """
-    pass
-
-def get_multihead_attention(d_model, nhead):
-    """
-    Returns a multihead attention module.
-
-    Args:
-        d_model (int): The number of expected features in the input.
-        nhead (int): The number of heads in the multiheadattention models.
-
-    Returns:
-        torch.nn.Module: The multihead attention module.
-    """
-    return torch.nn.MultiheadAttention(
-        embed_dim=d_model, num_heads=nhead, batch_first=True
-    )
-
 def build_encoder(
     d_model: int,
     nhead: int,
@@ -476,25 +452,11 @@ def build_encoder(
             num_latents,
             dropout
         )
-    else:
-        return Encoder(
-            d_model,
-            nhead,
-            dim_feedforward,
-            num_layers,
-            dropout
-        )
+    return Encoder(
+        d_model,
+        nhead,
+        dim_feedforward,
+        num_layers,
+        dropout
+    )
 
-def build_projection_layer(
-    d_in: int,
-    d_out: int
-):
-    return torch.nn.ModuleList([
-        torch.nn.Linear(d_in, d_out),
-        torch.nn.ReLU()
-    ]) 
-
-def build_positional_embedding(
-
-):
-    pass

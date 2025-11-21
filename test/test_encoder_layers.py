@@ -8,7 +8,7 @@ sys.path.append(parent)
 
 import torch
 import pytest
-from src.wayformer.layers import EncoderLayer, LatentEncoderLayer
+from src.wayformer.encoders import EncoderLayer, LatentEncoderLayer
 
 ###############################################
 # TEST ENCODER LAYER                          #
