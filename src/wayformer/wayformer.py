@@ -107,7 +107,9 @@ class Wayformer(torch.nn.Module):
 
         # Project to GMM parameters
         likelihoods = self.gmm_likelihood_projection(out) # [A, num_modes, 1]
-        gmm_params = self.gmm_param_projection(out) # [A, num_modes, 4]
+        gmm_params = self.gmm_param_projection(out) # [A, num_modes, future_timesteps * 4]
+        num_modes = out.shape[1]
+        gmm_params = gmm_params.view(A, num_modes, -1, 4) # [A, num_modes, future_timesteps, 4]
         return (gmm_params, likelihoods)
 
 def build_wayformer(
@@ -139,8 +141,11 @@ def build_wayformer(
     trafic_light_pos_encoder = build_positional_embedding(datasetconfig.hist_timesteps, datasetconfig.num_traffic_lights, d_model)
 
     # gmm projections
-    gmm_likelihood_projection = torch.nn.Linear(d_model, 1)
-    gmm_param_projection = torch.nn.Linear(d_model, 4)
+    gmm_likelihood_projection = torch.nn.Sequential(
+            torch.nn.Linear(d_model, 1),
+            torch.nn.Softmax(dim=-1)
+    )
+    gmm_param_projection = torch.nn.Linear(d_model, datasetconfig.future_timesteps * 4)
 
     model = Wayformer(
         encoder,

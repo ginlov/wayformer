@@ -37,6 +37,7 @@ class DummyConfig:
     road_dim = 5
     traffic_light_dim = 4
     hist_timesteps = 3
+    future_timesteps = 5
     num_near_agents = 2
     num_road_segments = 2
     num_traffic_lights = 2

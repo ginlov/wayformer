@@ -23,6 +23,7 @@ class DummyConfig:
     road_dim = 6
     traffic_light_dim = 3
     hist_timesteps = 2
+    future_timesteps = 5
     num_near_agents = 2
     num_road_segments = 2
     num_traffic_lights = 2
@@ -49,7 +50,7 @@ def test_wayformer_training_step(device):
     agent_inter = torch.randn(A, T, S_i, D_agent_inter, device=device)
     road = torch.randn(A, 1, S_road, D_road, device=device)
     traffic_light = torch.randn(A, T, S_tl, D_tl, device=device)
-    target = torch.randn(A, num_modes, 4, device=device)
+    target = torch.randn(A, num_modes, DummyConfig.future_timesteps, 4, device=device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
     model.train()
