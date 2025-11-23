@@ -2,7 +2,7 @@ import os
 import pickle
 import random
 
-from typing import Tuple
+from typing import Literal, Tuple
 from torch.utils.data import Sampler, Dataset
 
 from src.data.utils import data_sample
@@ -15,11 +15,13 @@ class WaymoDataset(Dataset):
         metadata_file: str = 'dataset_summary.pkl',
         mapping_file: str = 'dataset_mapping.pkl',
         cache_size: int = 1000,
+        partition: Literal['train', 'val', 'test'] = 'train'
     ):
         super().__init__()
         self.base_folder = base_folder
         self.metadata_path = os.path.join(base_folder, metadata_file)
         self.mapping_path = os.path.join(base_folder, mapping_file)
+        self.partition = partition
         assert os.path.exists(self.metadata_path), f"Metadata path {self.metadata_path} does not exist."
         assert os.path.exists(self.mapping_path), f"Summary path {self.mapping_path} does not exist."
 
@@ -41,11 +43,18 @@ class WaymoDataset(Dataset):
             for item in scene_meta['tracks_to_predict'].values():
                 self.tracks.append((i, item['track_index']))
 
+        if self.partition == 'train':
+            self.tracks = self.tracks[:200]
+        elif self.partition == 'val':
+            self.tracks = self.tracks[200:300]
+        else:  # test
+            self.tracks = self.tracks[300:400]
+
         self.cache_size = cache_size
         self.cache = {}
 
     def __len__(self):
-        return len(list(self.mapping.keys()))
+        return len(self.tracks)
 
     def __getitem__(self, index: Tuple[int, int]):
         if index in self.cache:

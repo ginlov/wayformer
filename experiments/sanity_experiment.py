@@ -29,4 +29,8 @@ class SanityExperiment(WayformerExperiment):
 
     @property
     def num_epochs(self) -> int:
-        return 2
+        return 10
+
+    @property
+    def val_freq(self) -> int:
+        return 1

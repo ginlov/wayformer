@@ -46,7 +46,7 @@ class WayformerRunner(TrainRunner):
                 logger.info(f"Starting validation at epoch {epoch + 1}.")
 
                 self.val_epoch_start()
-                self.validate()
+                self.val_epoch()
                 self.val_epoch_end()
                 logger.info(f"Validation at epoch {epoch + 1} completed.")
 
@@ -69,3 +69,26 @@ class WayformerRunner(TrainRunner):
             logger.log_metrics(grad_norm, local_step=self.step)
 
             logger.log_metrics({'lr': self.optimizer.param_groups[0]['lr']}, local_step=self.step)
+
+    def val_step(
+        self,
+        data_batch: Any,
+    ):
+        with torch.no_grad():
+            outputs = self.experiment.val_step(
+                model=self.model,
+                data_batch=data_batch,
+                loss_function=self.loss_function,
+                device=self.device
+            )
+
+            self.val_metrics.update({k: v for k, v in outputs.items() if 'val/' in k})
+            logger.log_images(
+                list(data_batch['idx']),
+                list(outputs['images']),
+                self.step
+            )
+
+    def val_epoch_end(self):
+        logger.log_metrics(self.val_metrics.summary(), local_step=self.step)
+

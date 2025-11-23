@@ -5,14 +5,17 @@ import torch
 from torch.utils.data import DataLoader
 from torch.optim import AdamW, Optimizer
 from torch.optim.lr_scheduler import _LRScheduler
+
 from cvrunner.runner import BaseRunner
 from cvrunner.utils.logger import get_cv_logger
 from cvrunner.experiment import BaseExperiment, DataBatch, MetricType
+
 from src.wayformer.config import DatasetConfig
 from src.wayformer.wayformer import build_wayformer
 from src.wayformer.loss import WayformerLoss
 from src.data.dataset import WaymoDataset, WaymoSampler
-from src.data.utils import collate_fn
+from src.data.utils import collate_fn, visualize_scene
+
 from runner.wayformer_runner import WayformerRunner
 
 logger = get_cv_logger()
@@ -115,7 +118,8 @@ class WayformerExperiment(BaseExperiment, ABC):
 
     def build_dataset(self, partition: str) -> WaymoDataset:
         dataset = WaymoDataset(
-            base_folder=self.base_data_folder if partition == "train" else self.base_val_data_folder,
+            base_folder=self.base_data_folder,
+            partition=partition
         )
         return dataset
 
@@ -197,7 +201,32 @@ class WayformerExperiment(BaseExperiment, ABC):
         criterion: torch.nn.Module | None = None,
         device: torch.device = torch.device("cpu")
     ) -> Dict[str, Any]:
-        return {}
+        data_batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in data_batch.items()}
+
+        output = model(
+            data_batch['agent_features'],
+            data_batch['agent_interaction_features'],
+            data_batch['road_features'],
+            data_batch['traffic_light_features'],
+            data_batch.get('agent_masks', None),
+            data_batch.get('agent_interaction_masks', None),
+            data_batch.get('road_masks', None),
+            data_batch.get('traffic_light_masks', None),
+        ) # (Axnum_modesxft_tsx4, Axnum_modesx1)
+
+        label_pos = data_batch['label_pos']
+        loss = loss_function(
+            label_pos,
+            output
+        )
+        
+        metrics = {'val/' + k.split('/')[1]: v.item() for k, v in loss.items()}
+
+        metrics['images'] = visualize_scene(
+            data_batch,
+            output
+        )
+        return metrics
 
     def load_checkpoint(self) -> None:
         pass
