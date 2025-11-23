@@ -30,7 +30,7 @@ class DummyConfig:
 @pytest.mark.parametrize("device", ["cpu"])
 def test_wayformer_training_step(device):
     torch.manual_seed(0)
-    B, A, T, S_i, S_road, S_tl = 2, 2, DummyConfig.hist_timesteps,\
+    A, T, S_i, S_road, S_tl = 2, DummyConfig.hist_timesteps,\
                 DummyConfig.num_near_agents, DummyConfig.num_road_segments, DummyConfig.num_traffic_lights
     D_agent_hist = DummyConfig.agent_hist_dim
     D_agent_inter = DummyConfig.agent_int_dim
@@ -45,11 +45,11 @@ def test_wayformer_training_step(device):
     ).to(device)
 
     # Dummy data
-    agent_hist = torch.randn(B, A, T, 1, D_agent_hist, device=device)
-    agent_inter = torch.randn(B, A, T, S_i, D_agent_inter, device=device)
-    road = torch.randn(B, A, 1, S_road, D_road, device=device)
-    traffic_light = torch.randn(B, A, T, S_tl, D_tl, device=device)
-    target = torch.randn(B, A, num_modes, 4, device=device)
+    agent_hist = torch.randn(A, T, 1, D_agent_hist, device=device)
+    agent_inter = torch.randn(A, T, S_i, D_agent_inter, device=device)
+    road = torch.randn(A, 1, S_road, D_road, device=device)
+    traffic_light = torch.randn(A, T, S_tl, D_tl, device=device)
+    target = torch.randn(A, num_modes, 4, device=device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
     model.train()

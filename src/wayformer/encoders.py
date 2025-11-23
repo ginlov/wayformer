@@ -53,15 +53,19 @@ class LateFusionSceneEncoder(torch.nn.Module):
 
     def forward(
         self,
-        agent_histories: torch.Tensor, # B x A x T_hist x 1 x D
-        agent_interactions: torch.Tensor, # B x A x T_hist x S_i x D
-        road_graphs: torch.Tensor, # B x A x 1 x S_r x D
-        traffic_lights: torch.Tensor, # B x A x T_hist x S_tls x D
-        agent_positional_encodings: torch.Tensor | None =None, # B x A x T_hist x 1 x D
-        agent_interaction_positional_encodings: torch.Tensor | None =None, # B x A x 
+        agent_histories: torch.Tensor, # A x T_hist x 1 x D
+        agent_interactions: torch.Tensor, # A x T_hist x S_i x D
+        road_graphs: torch.Tensor, # A x 1 x S_r x D
+        traffic_lights: torch.Tensor, # A x T_hist x S_tls x D
+        agent_positional_encodings: torch.Tensor | None =None, # A x T_hist x 1 x D
+        agent_interaction_positional_encodings: torch.Tensor | None =None, # A x 
                                                                             # T_hist x S_i x D
-        road_positional_encodings: torch.Tensor | None =None, # B x A x 1 x S_r x D
-        traffic_light_positional_encodings: torch.Tensor | None =None # B x A x T_hist x S_tls x D
+        road_positional_encodings: torch.Tensor | None =None, # A x 1 x S_r x D
+        traffic_light_positional_encodings: torch.Tensor | None =None, # A x T_hist x S_tls x D
+        agent_mask: torch.Tensor | None = None, # A x T_hist x 1
+        agent_interaction_mask: torch.Tensor | None = None, # A x T_hist x S_i
+        road_mask: torch.Tensor | None = None, # A x 1 x S_r
+        traffic_light_mask: torch.Tensor | None = None # A x T_hist x S_tls
     ) -> torch.Tensor: # B x A x sequence_length x D
         """
         Forward pass for the LateFusionSceneEncoder.
@@ -74,44 +78,56 @@ class LateFusionSceneEncoder(torch.nn.Module):
             torch.Tensor: The encoded scene features.
         """
         # Reshape inputs to merge batch and agent dimensions
-        B, A, T_hist, _, D = agent_histories.shape
-        S_r = road_graphs.shape[3]
-        S_i = agent_interactions.shape[3]
-        S_tls = traffic_lights.shape[3]
+        A, T_hist, _, D = agent_histories.shape
+        S_r = road_graphs.shape[2]
+        S_i = agent_interactions.shape[2]
+        S_tls = traffic_lights.shape[2]
         
         # Agent history encoding
-        agent_histories = agent_histories.view(B * A, T_hist, D)
+        agent_histories = agent_histories.view(A, T_hist, D)
         agent_positional_encodings = None if agent_positional_encodings is None\
-                                            else agent_positional_encodings.view(B * A, T_hist, D)
-        agent_encoding = self.agent_hist_encoder(agent_histories, agent_positional_encodings) # B*A x T_hist x D
+                                            else agent_positional_encodings.view(A, T_hist, D)
+        agent_mask = None if agent_mask is None else agent_mask.view(A, T_hist)
+        agent_encoding = self.agent_hist_encoder(
+            agent_histories,
+            agent_positional_encodings,
+            agent_mask
+        ) # A x T_hist x D
 
         # Road graph encoding
-        road_graphs = road_graphs.view(B * A, S_r, D)
+        road_graphs = road_graphs.view(A, S_r, D)
         road_positional_encodings = None if road_positional_encodings is None\
-                                            else road_positional_encodings.view(B * A, S_r, D)
-        road_encoding = self.road_encoder(road_graphs, road_positional_encodings) # B*A x S_r x D
+                                            else road_positional_encodings.view(A, S_r, D)
+        road_mask = None if road_mask is None else road_mask.view(A, S_r)
+        road_encoding = self.road_encoder(road_graphs, road_positional_encodings, road_mask) # A x S_r x D
 
         # Agent interaction encoding
-        agent_interactions = agent_interactions.view(B * A, S_i * T_hist, D)
+        agent_interactions = agent_interactions.view(A, S_i * T_hist, D)
         agent_interaction_positional_encodings = None if agent_interaction_positional_encodings is None \
-                                                        else agent_interaction_positional_encodings.view(B * A, S_i * T_hist, D)
+                                                        else agent_interaction_positional_encodings.view(A, S_i * T_hist, D)
+        agent_interaction_mask = None if agent_interaction_mask is None \
+                                        else agent_interaction_mask.view(A, S_i * T_hist)
         agent_int_encoding = self.agent_int_encoder(
             agent_interactions,
-            agent_interaction_positional_encodings
-        ) # B*A x (S_i * T_hist) x D
+            agent_interaction_positional_encodings,
+            agent_interaction_mask
+        ) # A x (S_i * T_hist) x D
 
         # Traffic light encoding
-        traffic_lights = traffic_lights.view(B * A, S_tls * T_hist, D)
+        traffic_lights = traffic_lights.view(A, S_tls * T_hist, D)
         traffic_light_positional_encodings = None if traffic_light_positional_encodings is None \
-                                                    else traffic_light_positional_encodings.view(B * A, S_tls * T_hist, D)
+                                                    else traffic_light_positional_encodings.view(A, S_tls * T_hist, D)
+        traffic_light_mask = None if traffic_light_mask is None \
+                                        else traffic_light_mask.view(A, S_tls * T_hist)
         traffic_light_encoding = self.traffic_light_encoder(
             traffic_lights,
-            traffic_light_positional_encodings
-        ) # B*A x (S_tls * T_hist) x D
+            traffic_light_positional_encodings,
+            traffic_light_mask
+        ) # A x (S_tls * T_hist) x D
         
         return torch.cat(
             [agent_encoding, road_encoding, agent_int_encoding, traffic_light_encoding], dim=1
-        ) # (B * A) x () x D
+        ) # A x () x D
 
 class EarlyFusionSceneEncoder(torch.nn.Module):
     pass
@@ -163,17 +179,20 @@ class SceneEncoder(torch.nn.Module):
 
     def forward(
         self,
-        agent_histories: torch.Tensor, # B x A x T_hist x 1 x D
-        agent_interactions: torch.Tensor, # B x A x T_hist x S_i x D
-        road_graphs: torch.Tensor, # B x A x 1 x S_r x D
-        traffic_lights: torch.Tensor, # B x A x T_hist x S_tls x D
-        agent_positional_encodings: torch.Tensor | None =None, # B x A x T_hist x 1 x D
-        agent_interaction_positional_encodings: torch.Tensor | None =None, # B x A x 
+        agent_histories: torch.Tensor, # A x T_hist x 1 x D
+        agent_interactions: torch.Tensor, # A x T_hist x S_i x D
+        road_graphs: torch.Tensor, # A x 1 x S_r x D
+        traffic_lights: torch.Tensor, # A x T_hist x S_tls x D
+        agent_positional_encodings: torch.Tensor | None =None, # A x T_hist x 1 x D
+        agent_interaction_positional_encodings: torch.Tensor | None =None, # A x 
                                                                             # T_hist x S_i x D
-        road_positional_encodings: torch.Tensor | None =None, # B x A x 1 x S_r x D
-        traffic_light_positional_encodings: torch.Tensor | None =None # B x A x T_hist x S_tls x D
-
-    ) -> torch.Tensor: # B x A x sequence_length x D
+        road_positional_encodings: torch.Tensor | None =None, # A x 1 x S_r x D
+        traffic_light_positional_encodings: torch.Tensor | None =None, # A x T_hist x S_tls x D
+        agent_mask: torch.Tensor | None = None, # A x T_hist x 1,
+        agent_interaction_mask: torch.Tensor | None = None, # A x T_hist x S_i
+        road_mask: torch.Tensor | None = None, # A x 1 x S_r
+        traffic_light_mask: torch.Tensor | None = None # A x T_hist x S_tls
+    ) -> torch.Tensor: # A x sequence_length x D
         """
         Forward pass for the SceneEncoder.
         Args:
@@ -189,10 +208,14 @@ class SceneEncoder(torch.nn.Module):
             agent_interactions,
             road_graphs,
             traffic_lights,
-            agent_positional_encodings, # B x A x T_hist x 1 x D
-            agent_interaction_positional_encodings, # B x A x T_hist x S_i x D
-            road_positional_encodings, # B x A x 1 x S_r x D
-            traffic_light_positional_encodings # B x A x T_hist x S_tls x D
+            agent_positional_encodings, # A x T_hist x 1 x D
+            agent_interaction_positional_encodings, # A x T_hist x S_i x D
+            road_positional_encodings, # A x 1 x S_r x D
+            traffic_light_positional_encodings, # A x T_hist x S_tls x D
+            agent_mask, # A x T_hist x 1,
+            agent_interaction_mask, # A x T_hist x S_i
+            road_mask, # A x 1 x S_r
+            traffic_light_mask # A x T_hist x S_tls
         )
 
 class EncoderLayer(torch.nn.Module):
@@ -359,6 +382,7 @@ class Encoder(torch.nn.Module):
         self,
         src: torch.Tensor, # B x S x D
         positional_encoding: torch.Tensor | None =None, # B x S x D
+        key_mask: torch.Tensor | None =None, # B x S
     ):
         """
         Forward pass for the Encoder.
@@ -371,7 +395,7 @@ class Encoder(torch.nn.Module):
         """
         output = src
         for layer in self.layers:
-            output = layer(output, output, output, positional_encoding)
+            output = layer(output, output, output, positional_encoding, key_mask)
         return output
 
 class LatentEncoder(torch.nn.Module):
@@ -412,6 +436,7 @@ class LatentEncoder(torch.nn.Module):
         self,
         src: torch.Tensor, # B x S x D
         positional_encoding: torch.Tensor | None =None, # B x S x D
+        key_mask: torch.Tensor | None =None, # B x S
     ):
         """
         Forward pass for the LatentEncoder.
@@ -423,11 +448,11 @@ class LatentEncoder(torch.nn.Module):
             torch.Tensor: The output tensor after processing.
         """
         # Feed through first latent encoder layers
-        output = self.layers[0](src, src, positional_encoding=positional_encoding)
+        output = self.layers[0](src, src, positional_encoding=positional_encoding, key_mask=key_mask)
 
         # Feed through remaining encoder num_layers
         for layer in self.layers[1:]:
-            output = layer(output, src, src, positional_encoding)
+            output = layer(output, src, src, positional_encoding, key_mask)
         return output
 
 def build_encoder(

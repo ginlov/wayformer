@@ -66,10 +66,14 @@ class Wayformer(torch.nn.Module):
 
     def forward(
         self,
-        agent_hist: torch.Tensor, # [B, A, T, 1, D_agent_hist]
-        agent_inter: torch.Tensor , # [B, A, T, S_i, D_agent_inter]
-        road: torch.Tensor, # [B, A, 1, S_road, D_road]
-        traffic_light: torch.Tensor, # [B, A, T, S_traffic_light, D_traffic_light]
+        agent_hist: torch.Tensor, # [A, T, 1, D_agent_hist]
+        agent_inter: torch.Tensor , # [A, T, S_i, D_agent_inter]
+        road: torch.Tensor, # [A, 1, S_road, D_road]
+        traffic_light: torch.Tensor, # [A, T, S_traffic_light, D_traffic_light]
+        agent_masks: torch.Tensor | None = None, # [A, T, 1]
+        agent_inter_masks: torch.Tensor | None = None, # [A, T, S_i]
+        road_masks: torch.Tensor | None = None, # [A, 1, S_road]
+        traffic_light_masks: torch.Tensor | None = None, # [A, T, S_traffic_light]
     ):
         # Project inputs to model dimensions
         agent_hist = self.agent_projection(agent_hist)  # [B, A, T, 1, D_model]
@@ -78,30 +82,32 @@ class Wayformer(torch.nn.Module):
         traffic_light = self.traffic_light_projection(traffic_light)  # [B, A, T, S_traffic_light, D_model]
 
         # Encode inputs
-        B, A = agent_hist.shape[:2]
+        A = agent_hist.shape[0]
         scene_encoding = self.encoder(
             agent_hist,
             agent_inter,
             road,
             traffic_light,
-            self.agent_pos_encoder.unsqueeze(0).unsqueeze(0).expand(B, A, -1, -1, -1) \
+            self.agent_pos_encoder.unsqueeze(0).expand(A, -1, -1, -1) \
                         if self.agent_pos_encoder is not None else None,
-            self.agent_inter_pos_encoder.unsqueeze(0).unsqueeze(0).expand(B, A, -1, -1, -1) \
+            self.agent_inter_pos_encoder.unsqueeze(0).expand(A, -1, -1, -1) \
                         if self.agent_inter_pos_encoder is not None else None,
-            self.road_pos_encoder.unsqueeze(0).unsqueeze(0).expand(B, A, -1, -1, -1) \
+            self.road_pos_encoder.unsqueeze(0).expand(A, -1, -1, -1) \
                         if self.road_pos_encoder is not None else None,
-            self.trafic_light_pos_encoder.unsqueeze(0).unsqueeze(0).expand(B, A, -1, -1, -1) \
+            self.trafic_light_pos_encoder.unsqueeze(0).expand(A, -1, -1, -1) \
                         if self.trafic_light_pos_encoder is not None else None,
-        ) # [B*A,(), D_model]
+            agent_masks,
+            agent_inter_masks,
+            road_masks,
+            traffic_light_masks
+        ) # [A,(), D_model]
 
         # Decode to get trajectory predictions
-        out = self.decoder(scene_encoding) # [B*A, num_modes, D_model]
-        num_modes, d_model = out.shape[1], out.shape[2]
-        out = out.view(B, A, num_modes, d_model) # [B, A, num_modes, D_model]
+        out = self.decoder(scene_encoding) # [A, num_modes, D_model]
 
         # Project to GMM parameters
-        likelihoods = self.gmm_likelihood_projection(out) # [B, A, num_modes, 1]
-        gmm_params = self.gmm_param_projection(out) # [B, A, num_modes, 4]
+        likelihoods = self.gmm_likelihood_projection(out) # [A, num_modes, 1]
+        gmm_params = self.gmm_param_projection(out) # [A, num_modes, 4]
         return (gmm_params, likelihoods)
 
 def build_wayformer(
