@@ -1,0 +1,206 @@
+from abc import ABC
+from typing import Type, Tuple, Dict, Any
+import torch
+
+from torch.utils.data import DataLoader
+from torch.optim import AdamW, Optimizer
+from torch.optim.lr_scheduler import _LRScheduler
+from cvrunner.runner import BaseRunner
+from cvrunner.utils.logger import get_cv_logger
+from cvrunner.experiment import BaseExperiment, DataBatch, MetricType
+from src.wayformer.config import DatasetConfig
+from src.wayformer.wayformer import build_wayformer
+from src.wayformer.loss import WayformerLoss
+from src.data.dataset import WaymoDataset, WaymoSampler
+from src.data.utils import collate_fn
+from runner.wayformer_runner import WayformerRunner
+
+logger = get_cv_logger()
+
+class WayformerExperiment(BaseExperiment, ABC):
+    def __init__(self):
+        pass
+
+    @property
+    def val_freq(self) -> int:
+        return 2
+
+    def runner_cls(self) -> Type[BaseRunner]:
+        return WayformerRunner
+
+    @property
+    def sanity_check(self) -> bool:
+        return False
+
+    @property
+    def wandb_project(self) -> str:
+        return "Wayformer"
+
+    @property
+    def base_data_folder(self) -> str:
+        return "/home/leo/data/scenario_format_waymo/training/"
+
+    @property
+    def base_val_data_folder(self) -> str:
+        return "/home/leo/data/scenario_format_waymo/validation/"
+
+    @property
+    def batch_size(self) -> int:
+        return 32
+
+    @property
+    def weight_decay(self) -> float:
+        return 10e-3
+
+    @property
+    def num_eopchs(self) -> int:
+        return 30
+
+    @property
+    def dataset_config(self) -> DatasetConfig:
+        return DatasetConfig()
+
+    ########################################
+    # MODEL CONFIGURATION                  #
+    ########################################
+    @property
+    def d_model(self) -> int:
+        return 64
+
+    @property
+    def nhead(self) -> int:
+        return 2
+
+    @property
+    def dim_feedforward(self) -> int:
+        return 128
+
+    @property
+    def num_layers(self) -> int:
+        return 3
+
+    @property
+    def dropout(self) -> float:
+        return 0.1
+
+    @property
+    def fusion(self) -> str:
+        return "late"
+
+    @property
+    def num_latents(self) -> int:
+        return 16
+
+    @property
+    def attention_type(self) -> str:
+        return "latent"
+
+    @property
+    def num_modes(self) -> int:
+        return 6
+
+    def build_model(self) -> torch.nn.Module:
+        return build_wayformer(
+            self.d_model,
+            self.nhead,
+            self.dim_feedforward,
+            self.num_layers,
+            self.dropout,
+            self.fusion,
+            self.num_latents,
+            self.attention_type,
+            self.num_modes,
+            self.dataset_config
+        )
+
+    def build_dataset(self, partition: str) -> WaymoDataset:
+        dataset = WaymoDataset(
+            base_folder=self.base_data_folder if partition == "train" else self.base_val_data_folder,
+        )
+        return dataset
+
+    def build_dataloader(self, partition: str) -> DataLoader:
+        dataset = self.build_dataset(partition=partition)
+
+        sampler = WaymoSampler(dataset, shuffle=(partition == "train"))
+
+        dataloader = DataLoader(
+            dataset,
+            batch_size=self.batch_size,
+            sampler=sampler,
+            num_workers=4,
+            collate_fn=collate_fn
+        )
+        return dataloader
+
+    def build_loss_function(self) -> torch.nn.Module:
+        return WayformerLoss()
+
+    def build_optimizer_scheduler(
+        self,
+        model: torch.nn.Module,
+        len_dataloader: int = 0
+    ) -> Tuple[Optimizer, _LRScheduler]:
+        optimizer = AdamW(
+            model.parameters(),
+            lr=1e-3,
+            weight_decay=self.weight_decay
+        )
+
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer,
+            T_max=self.num_eopchs * len_dataloader
+        )
+
+        return optimizer, scheduler
+
+    def train_step(
+        self,
+        model: torch.nn.Module,
+        data_batch: DataBatch,
+        loss_function: torch.nn.Module,
+        optimizer: Optimizer,
+        lr_scheduler: _LRScheduler,
+        device: torch.device
+    ) -> MetricType:
+        optimizer.zero_grad()
+        data_batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in data_batch.items()}
+
+        output = model(
+            data_batch['agent_features'],
+            data_batch['agent_interaction_features'],
+            data_batch['road_features'],
+            data_batch['traffic_light_features'],
+            data_batch.get('agent_masks', None),
+            data_batch.get('agent_interaction_masks', None),
+            data_batch.get('road_masks', None),
+            data_batch.get('traffic_light_masks', None),
+        ) # (Axnum_modesxft_tsx4, Axnum_modesx1)
+        label_pos = data_batch['label_pos']
+
+        loss = loss_function(
+            label_pos,
+            output
+        )
+
+        loss['loss/loss'].backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.3)
+        optimizer.step()
+        lr_scheduler.step()
+        return {k: v.item() for k, v in loss.items()}
+
+    def val_step(
+        self,
+        model: torch.nn.Module,
+        data_batch: DataBatch,
+        loss_function: torch.nn.Module,
+        criterion: torch.nn.Module | None = None,
+        device: torch.device = torch.device("cpu")
+    ) -> Dict[str, Any]:
+        return {}
+
+    def load_checkpoint(self) -> None:
+        pass
+
+    def save_checkpoint(self) -> None:
+        pass

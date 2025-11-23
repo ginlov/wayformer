@@ -5,7 +5,6 @@ from src.wayformer.encoders import SceneEncoder, build_encoder
 from src.wayformer.decoders import TrajectoryDecoder
 from src.wayformer.factories import build_positional_embedding
 from src.wayformer.config import DatasetConfig
-
 class Wayformer(torch.nn.Module):
     """
     The Wayformer model for trajectory prediction.
@@ -76,10 +75,10 @@ class Wayformer(torch.nn.Module):
         traffic_light_masks: torch.Tensor | None = None, # [A, T, S_traffic_light]
     ):
         # Project inputs to model dimensions
-        agent_hist = self.agent_projection(agent_hist)  # [B, A, T, 1, D_model]
-        agent_inter = self.agent_inter_projection(agent_inter) # [B, A, T, S_i, D_model]
-        road = self.road_projection(road)  # [B, A, 1, S_road, D_model]
-        traffic_light = self.traffic_light_projection(traffic_light)  # [B, A, T, S_traffic_light, D_model]
+        agent_hist = self.agent_projection(agent_hist)  # [A, T, 1, D_model]
+        agent_inter = self.agent_inter_projection(agent_inter) # [A, T, S_i, D_model]
+        road = self.road_projection(road)  # [A, 1, S_road, D_model]
+        traffic_light = self.traffic_light_projection(traffic_light)  # [A, T, S_traffic_light, D_model]
 
         # Encode inputs
         A = agent_hist.shape[0]
@@ -107,6 +106,7 @@ class Wayformer(torch.nn.Module):
 
         # Project to GMM parameters
         likelihoods = self.gmm_likelihood_projection(out) # [A, num_modes, 1]
+        likelihoods = torch.softmax(likelihoods.squeeze(-1), dim=-1) # [A, num_modes]
         gmm_params = self.gmm_param_projection(out) # [A, num_modes, future_timesteps * 4]
         num_modes = out.shape[1]
         gmm_params = gmm_params.view(A, num_modes, -1, 4) # [A, num_modes, future_timesteps, 4]
@@ -135,16 +135,13 @@ def build_wayformer(
     traffic_light_projection = torch.nn.Linear(datasetconfig.traffic_light_dim, d_model)
 
     # Build positional encoders
-    agent_pos_encoder = build_positional_embedding(datasetconfig.hist_timesteps, 1, d_model)
-    agent_inter_pos_encoder = build_positional_embedding(datasetconfig.hist_timesteps, datasetconfig.num_near_agents ,d_model)
+    agent_pos_encoder = build_positional_embedding(datasetconfig.hist_timesteps+1, 1, d_model)
+    agent_inter_pos_encoder = build_positional_embedding(datasetconfig.hist_timesteps+1, datasetconfig.num_near_agents ,d_model)
     road_pos_encoder = build_positional_embedding(1, datasetconfig.num_road_segments, d_model)
-    trafic_light_pos_encoder = build_positional_embedding(datasetconfig.hist_timesteps, datasetconfig.num_traffic_lights, d_model)
+    trafic_light_pos_encoder = build_positional_embedding(datasetconfig.hist_timesteps+1, datasetconfig.num_traffic_lights, d_model)
 
     # gmm projections
-    gmm_likelihood_projection = torch.nn.Sequential(
-            torch.nn.Linear(d_model, 1),
-            torch.nn.Softmax(dim=-1)
-    )
+    gmm_likelihood_projection = torch.nn.Linear(d_model, 1)
     gmm_param_projection = torch.nn.Linear(d_model, datasetconfig.future_timesteps * 4)
 
     model = Wayformer(
