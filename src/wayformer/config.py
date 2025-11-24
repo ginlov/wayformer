@@ -16,5 +16,5 @@ class DatasetConfig:
     # You can change these parameters            #
     ##############################################
     num_near_agents: int = 6
-    num_road_segments: int = 4000
+    num_road_segments: int = 5000
     num_traffic_lights: int = 10

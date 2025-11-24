@@ -407,12 +407,12 @@ def visualize_one_cv2(road_lines, hist_traj, future_traj, gt_traj, img_size=800,
 
     # Draw ground-truth trajectory (green)
     gt_pts = np.round(to_img_coords(gt_traj)).astype(int)
-    cv2.polylines(img, [gt_pts], isClosed=False, color=(0,255,0), thickness=1)
+    cv2.polylines(img, [np.concatenate([hist_pts[-1].reshape(1, 2), gt_pts], axis=0)], isClosed=False, color=(0,255,0), thickness=1)
 
     # Draw future trajectories (blue)
     for mode in range(future_traj.shape[0]):
         fut_pts = np.round(to_img_coords(future_traj[mode])).astype(int)
-        cv2.polylines(img, [fut_pts], isClosed=False, color=colors[mode%10], thickness=1)
+        cv2.polylines(img, [np.concatenate([hist_pts[-1].reshape(1, 2), fut_pts], axis=0)], isClosed=False, color=colors[mode%10], thickness=1)
     return img
 
 @torch.no_grad()
