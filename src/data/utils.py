@@ -191,7 +191,7 @@ def data_sample(scene, track_index: int):
     segment_midpoints = np.array([
         np.mean(segment, axis=0) for segment in poly_segments
     ]) # [M, 2]
-    dists_to_segments = np.linalg.norm(segment_midpoints - current_track_pos, axis=1) # [M]
+    dists_to_segments = np.linalg.norm(segment_midpoints - current_track_pos - np.array([15.0, 0.0]), axis=1) # [M]
     nearest_indices = np.argsort(dists_to_segments)
     if len(dists_to_segments) >= DatasetConfig.num_road_segments:
         selected_indices = nearest_indices[:DatasetConfig.num_road_segments]
@@ -356,7 +356,7 @@ def visualize_one(
     plt.close(fig)
     return img
 
-def visualize_one_cv2(road_lines, hist_traj, future_traj, img_size=800, margin=20):
+def visualize_one_cv2(road_lines, hist_traj, future_traj, gt_traj, img_size=800, margin=20):
     # Gather all points to determine bounds
     points = []
     for line in road_lines:
@@ -381,6 +381,20 @@ def visualize_one_cv2(road_lines, hist_traj, future_traj, img_size=800, margin=2
 
     img = np.ones((img_size, img_size, 3), dtype=np.uint8) * 255
 
+    colors = [
+        (0, 0, 255),      # Red
+        (0, 255, 255),    # Yellow
+        (255, 0, 255),    # Magenta
+        (128, 0, 255),    # Purple
+        (255, 128, 0),    # Orange
+    
+        (255, 0, 128),    # Pink-Red
+        (0, 128, 255),    # Gold-ish
+        (128, 128, 255),  # Lavender
+        (255, 128, 128),  # Salmon
+        (128, 255, 0),    # Lime Yellow (not green)
+    ]
+
     # Draw road lines
     for line in road_lines:
         pt1 = tuple(np.round(to_img_coords(np.array(line[:2]))).astype(int))
@@ -389,21 +403,27 @@ def visualize_one_cv2(road_lines, hist_traj, future_traj, img_size=800, margin=2
 
     # Draw historical trajectory (red)
     hist_pts = np.round(to_img_coords(hist_traj)).astype(int)
-    cv2.polylines(img, [hist_pts], isClosed=False, color=(0, 0, 255), thickness=2)
+    cv2.polylines(img, [hist_pts], isClosed=False, color=(0, 0, 255), thickness=1)
+
+    # Draw ground-truth trajectory (green)
+    gt_pts = np.round(to_img_coords(gt_traj)).astype(int)
+    cv2.polylines(img, [gt_pts], isClosed=False, color=(0,255,0), thickness=1)
 
     # Draw future trajectories (blue)
     for mode in range(future_traj.shape[0]):
         fut_pts = np.round(to_img_coords(future_traj[mode])).astype(int)
-        cv2.polylines(img, [fut_pts], isClosed=False, color=(255, 0, 0), thickness=2)
+        cv2.polylines(img, [fut_pts], isClosed=False, color=colors[mode%10], thickness=1)
     return img
 
 @torch.no_grad()
 def visualize_scene(
     data_batch,
     predictions,
+    gt_traj # [A, ts, 2]
 ):
     road_lines = data_batch['road_features'][:, 0, :, :4].cpu().numpy()
     hist_traj = data_batch['agent_features'][:, :, 0, :2].cpu().numpy()
+    gt_traj = gt_traj.cpu().numpy()
 
     traj_preds, mode_probs = predictions
 
@@ -414,8 +434,8 @@ def visualize_scene(
         img = visualize_one_cv2(
             road_lines[i],
             hist_traj[i],
-            future_traj[i]
+            future_traj[i],
+            gt_traj[i]
         )
         out_imgs.append(img)
     return out_imgs
-

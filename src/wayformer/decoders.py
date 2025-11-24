@@ -90,7 +90,8 @@ class TrajectoryDecoder(torch.nn.Module):
             dropout (float): The dropout value.
         """
         super().__init__()
-        self.mode_query = torch.nn.Parameter(torch.randn(num_modes, d_model))
+        self.mode_query = torch.nn.Parameter(torch.empty(num_modes, d_model))
+        torch.nn.init.orthogonal_(self.mode_query)
         self.layers = torch.nn.ModuleList([
             DecoderLayer(
                 d_model, nhead, dim_feedforward, dropout

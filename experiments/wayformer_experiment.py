@@ -224,7 +224,8 @@ class WayformerExperiment(BaseExperiment, ABC):
 
         metrics['images'] = visualize_scene(
             data_batch,
-            output
+            output,
+            label_pos
         )
         return metrics
 
