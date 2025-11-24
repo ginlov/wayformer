@@ -27,7 +27,7 @@ class WaymoDataset(Dataset):
 
         # Read metadata
         with open(self.metadata_path, 'rb') as f:
-            self.metadata = pickle.load(f)
+            metadata = pickle.load(f)
 
         with open(self.mapping_path, 'rb') as f:
             self.mapping = pickle.load(f)
@@ -36,15 +36,13 @@ class WaymoDataset(Dataset):
         
         # Build tracks list
         self.tracks = []
-        for i, key in tqdm(enumerate(self.metadata), desc="Building track index"):
-            scene_meta = self.metadata[key]
+        for i, key in tqdm(enumerate(metadata), desc="Building track index"):
+            scene_meta = metadata[key]
             sdc_index = scene_meta['sdc_track_index']
             self.tracks.append((i, sdc_index))
             for item in scene_meta['tracks_to_predict'].values():
                 self.tracks.append((i, item['track_index']))
 
-        random.seed(42)
-        random.shuffle(self.tracks)
         if self.partition == 'train':
             self.tracks = self.tracks[:20000]
         elif self.partition == 'val':

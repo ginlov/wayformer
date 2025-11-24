@@ -37,4 +37,4 @@ class SanityExperiment(WayformerExperiment):
     
     @property
     def batch_size(self) -> int:
-        return 16
+        return 128

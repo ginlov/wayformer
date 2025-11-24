@@ -118,7 +118,7 @@ class WayformerExperiment(BaseExperiment, ABC):
 
     def build_dataset(self, partition: str) -> WaymoDataset:
         dataset = WaymoDataset(
-            base_folder=self.base_data_folder,
+            base_folder=self.base_data_folder if partition == "train" else self.base_val_data_folder,
             partition=partition
         )
         return dataset
