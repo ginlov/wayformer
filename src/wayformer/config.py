@@ -7,7 +7,7 @@ class DatasetConfig:
     # Do not change, they depend on the dataset  #
     ##############################################
     hist_timesteps: int = 10
-    future_timesteps: int = 80
+    future_timesteps: int = 40
     agent_hist_dim: int = 8
     agent_int_dim: int = 8
     road_dim: int = 6

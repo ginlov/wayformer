@@ -98,11 +98,11 @@ def data_sample(scene, track_index: int):
 
     label_pos = rotate_pos(
         current_track_pos, current_track_heading,
-        track_to_train['position'][current_ts + 1:, :2]
+        track_to_train['position'][current_ts + 1:current_ts + 1 + DatasetConfig.future_timesteps, :2]
     ) # [feature_ts, 2]
     label_heading = rotate_heading(
         current_track_heading,
-        track_to_train['heading'][current_ts + 1:]
+        track_to_train['heading'][current_ts + 1:current_ts + 1 + DatasetConfig.future_timesteps]
     ) # [feature_ts]
 
     # Agent interaction features
@@ -313,8 +313,8 @@ def data_sample(scene, track_index: int):
     assert road_mask.shape == (1, DatasetConfig.num_road_segments)
     assert traffic_light_features.shape == (11, DatasetConfig.num_traffic_lights, 3)
     assert traffic_light_mask.shape == (11, DatasetConfig.num_traffic_lights)
-    assert label_pos.shape == (80, 2)
-    assert label_heading.shape == (80,)
+    assert label_pos.shape == (DatasetConfig.future_timesteps, 2)
+    assert label_heading.shape == (DatasetConfig.future_timesteps,)
     return {
         'agent_features': features[:, None, :], # [11, 1, 8]
         'agent_mask': agent_mask[:, None], # [11, 1]
@@ -324,8 +324,8 @@ def data_sample(scene, track_index: int):
         'road_mask': road_mask, # [1, num_road_segments]
         'traffic_light_features': traffic_light_features.astype(np.float32), # [11, num_traffic_lights, 3]
         'traffic_light_mask': traffic_light_mask, # [11, num_traffic_lights]
-        'label_pos': label_pos, # [80, 2]
-        'label_heading': label_heading, # [80]
+        'label_pos': label_pos, # [fut_ts, 2]
+        'label_heading': label_heading, # [fut_ts]
         'idx': f"{scene['id']}_{track_index}"
     }
 
