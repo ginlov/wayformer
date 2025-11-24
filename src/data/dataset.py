@@ -44,11 +44,11 @@ class WaymoDataset(Dataset):
                 self.tracks.append((i, item['track_index']))
 
         if self.partition == 'train':
-            self.tracks = self.tracks[:20000]
+            self.tracks = random.sample(self.tracks, k=20000)
         elif self.partition == 'val':
-            self.tracks = self.tracks[20000:25000]
+            self.tracks = random.sample(self.tracks, k=5000)
         else:  # test
-            self.tracks = self.tracks[25000:30000]
+            self.tracks = random.sample(self.tracks, k=5000)
 
         self.cache_size = cache_size
         self.cache = {}
