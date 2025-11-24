@@ -35,7 +35,19 @@ class WayformerLoss(torch.nn.Module):
         gauss_nll = 0.5 * (((targets - best_mode_mean) / best_mode_std) ** 2 + 2 * best_mode_log_std + torch.log(torch.tensor(2 * torch.pi))) # [A, ts, 2]
         traj_nll_loss = gauss_nll.mean(dim=-1).mean() # scalar
 
-        total_loss = log_likelihood_loss + traj_nll_loss
+        # Weighted L2 std regularization
+        # Further timestep should be regularized more heavily
+        time_weights = torch.linspace(1.0, 4.0, steps=ts).to(targets.device) # [ts]
+        l2_std_reg = torch.norm(best_mode_std * time_weights.unsqueeze(0).unsqueeze(2), dim=-1).mean() # scalar
+
+        # Weighted L2 mean regularization
+        # Further timestep should be regularized more heavily
+        l2_mean_reg = torch.norm((targets - best_mode_mean) * time_weights.unsqueeze(0).unsqueeze(2), dim=-1).mean() # scalar
+
+        total_loss = log_likelihood_loss + traj_nll_loss + 0.5 * l2_std_reg + 0.1 * l2_mean_reg
         return {'loss/loss': total_loss,
                 'loss/classification_loss': log_likelihood_loss,
-                'loss/regression_loss': traj_nll_loss}
+                'loss/regression_loss': traj_nll_loss,
+                'loss/l2_std_reg': 0.5*l2_std_reg,
+                'loss/l2_mean_reg': 0.1*l2_mean_reg}
+

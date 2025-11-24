@@ -121,12 +121,13 @@ def build_wayformer(
     fusion,
     num_latents,
     attention_type,
+    num_decoder_layers,
     num_modes,
     datasetconfig: Type[DatasetConfig]
 ):
     encoder = SceneEncoder(d_model, nhead, dim_feedforward, num_layers, dropout, fusion, num_latents, attention_type)
 
-    decoder = TrajectoryDecoder(num_modes, d_model, nhead, dim_feedforward, num_layers, dropout)
+    decoder = TrajectoryDecoder(num_modes, d_model, nhead, dim_feedforward, num_decoder_layers, dropout)
 
     # Build projection layers
     agent_projection = torch.nn.Linear(datasetconfig.agent_hist_dim, d_model)

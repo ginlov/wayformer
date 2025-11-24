@@ -68,7 +68,7 @@ class WayformerExperiment(BaseExperiment, ABC):
     ########################################
     @property
     def d_model(self) -> int:
-        return 64
+        return 256
 
     @property
     def nhead(self) -> int:
@@ -92,11 +92,15 @@ class WayformerExperiment(BaseExperiment, ABC):
 
     @property
     def num_latents(self) -> int:
-        return 16
+        return 64
 
     @property
     def attention_type(self) -> str:
         return "latent"
+
+    @property
+    def num_decoder_layers(self) -> int:
+        return 8
 
     @property
     def num_modes(self) -> int:
@@ -112,6 +116,7 @@ class WayformerExperiment(BaseExperiment, ABC):
             self.fusion,
             self.num_latents,
             self.attention_type,
+            self.num_decoder_layers,
             self.num_modes,
             self.dataset_config
         )
@@ -147,13 +152,18 @@ class WayformerExperiment(BaseExperiment, ABC):
     ) -> Tuple[Optimizer, _LRScheduler]:
         optimizer = AdamW(
             model.parameters(),
-            lr=1e-3,
+            lr=5e-4,
             weight_decay=self.weight_decay
         )
 
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        #     optimizer,
+        #     T_max=self.num_eopchs * len_dataloader
+        # )
+        scheduler = torch.optim.lr_scheduler.ConstantLR(
             optimizer,
-            T_max=self.num_eopchs * len_dataloader
+            factor=1.0,
+            total_iters=self.num_eopchs * len_dataloader
         )
 
         return optimizer, scheduler

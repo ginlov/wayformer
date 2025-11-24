@@ -91,9 +91,6 @@ class WayformerRunner(TrainRunner):
                 self.step
             )
 
-    def val_epoch_end(self):
-        logger.log_metrics(self.val_metrics.summary(), local_step=self.step)
-
     def checkpoint(self):
         super().checkpoint()
         logger.info(f"Checkpoint saved at step {self.step}.")

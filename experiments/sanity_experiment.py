@@ -11,6 +11,7 @@ from torch.utils.data import Dataset
 from torch.optim import AdamW, Optimizer
 from torch.optim.lr_scheduler import _LRScheduler
 
+from src.data.dataset import WaymoDataset
 from src.wayformer.wayformer import build_wayformer
 
 from runner.wayformer_runner import WayformerRunner
@@ -29,12 +30,12 @@ class SanityExperiment(WayformerExperiment):
 
     @property
     def num_epochs(self) -> int:
-        return 20
+        return 1000
 
     @property
     def val_freq(self) -> int:
-        return 3
-    
+        return 1
+
     @property
     def batch_size(self) -> int:
-        return 128
+        return 2
