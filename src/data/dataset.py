@@ -43,12 +43,14 @@ class WaymoDataset(Dataset):
             for item in scene_meta['tracks_to_predict'].values():
                 self.tracks.append((i, item['track_index']))
 
+        random.seed(42)
+        random.shuffle(self.tracks)
         if self.partition == 'train':
-            self.tracks = self.tracks[:200]
+            self.tracks = self.tracks[:20000]
         elif self.partition == 'val':
-            self.tracks = self.tracks[200:300]
+            self.tracks = self.tracks[20000:25000]
         else:  # test
-            self.tracks = self.tracks[300:400]
+            self.tracks = self.tracks[25000:30000]
 
         self.cache_size = cache_size
         self.cache = {}

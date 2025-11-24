@@ -1,5 +1,6 @@
 import itertools
 from typing import TYPE_CHECKING, Any
+import os
 
 import torch
 from cvrunner.runner import TrainRunner
@@ -48,6 +49,7 @@ class WayformerRunner(TrainRunner):
                 self.val_epoch_start()
                 self.val_epoch()
                 self.val_epoch_end()
+                self.checkpoint()
                 logger.info(f"Validation at epoch {epoch + 1} completed.")
 
     def train_epoch(self):
@@ -92,3 +94,14 @@ class WayformerRunner(TrainRunner):
     def val_epoch_end(self):
         logger.log_metrics(self.val_metrics.summary(), local_step=self.step)
 
+    def checkpoint(self):
+        super().checkpoint()
+        logger.info(f"Checkpoint saved at step {self.step}.")
+        checkpoint_path = os.path.join('checkpoints', self.experiment.wandb_runname, f'checkpoint_step_{self.step}.pt')
+        os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
+        torch.save({
+            'model_state_dict': self.model.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'lr_scheduler_state_dict': self.lr_scheduler.state_dict(),
+            'step': self.step,
+        }, checkpoint_path)
