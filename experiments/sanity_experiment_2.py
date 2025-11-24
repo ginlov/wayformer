@@ -26,7 +26,7 @@ class SanityExperiment(WayformerExperiment):
     @property
     def wandb_runname(self) -> str:
         now = datetime.now().strftime("%Y%m%d_%H%M%S")
-        return "10000_training_samples_test2"
+        return "10000_training_samples_cosine_scheduler2"
         return f"sanity_check_{now}"
 
     @property
@@ -40,3 +40,21 @@ class SanityExperiment(WayformerExperiment):
     @property
     def batch_size(self) -> int:
         return 64
+
+    def build_optimizer_scheduler(
+        self,
+        model: torch.nn.Module,
+        len_dataloader: int = 0
+    ) -> Tuple[Optimizer, _LRScheduler]:
+        optimizer = AdamW(
+            model.parameters(),
+            lr=5e-4,
+            weight_decay=self.weight_decay
+        )
+
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer,
+            T_max=self.num_eopchs * len_dataloader
+        )
+
+        return optimizer, scheduler
