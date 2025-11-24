@@ -57,6 +57,18 @@ def rotate_heading(
     rotated = (rotated + np.pi) % (2 * np.pi) - np.pi
     return rotated
 
+def rotate_velo(
+    new_x_direction: float,
+    velo: np.ndarray  # [N, 2]
+):
+    """
+    Rotate velocity vectors by -new_x_direction.
+    """
+    c, s = np.cos(-new_x_direction), np.sin(-new_x_direction)
+    rot_mat = np.array([[c, -s], [s, c]])
+    rotated = velo @ rot_mat.T
+    return rotated
+
 def data_sample(scene, track_index: int):
     current_ts = 10
 
@@ -75,7 +87,7 @@ def data_sample(scene, track_index: int):
             track_to_train['height'][:, None], # [length, 1]
             rotate_heading(current_track_heading,
                            track_to_train['heading'])[:, None], # [length, 1]
-            rotate_pos(current_track_pos, current_track_heading,
+            rotate_velo(current_track_heading,
                        track_to_train['velocity']), # [length, 2]
         ],
         axis=1
@@ -122,7 +134,7 @@ def data_sample(scene, track_index: int):
                 other_track['height'][:current_ts+1, None], # [length, 1]
                 rotate_heading(current_track_heading,
                                other_track['heading'])[:current_ts+1, None], # [length, 1]
-                rotate_pos(current_track_pos, current_track_heading,
+                rotate_velo(current_track_heading,
                            other_track['velocity'][:current_ts+1]), # [length, 2]
             ],
             axis=1
