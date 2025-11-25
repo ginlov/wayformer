@@ -9,7 +9,6 @@ from torch.optim.lr_scheduler import _LRScheduler
 from cvrunner.runner import BaseRunner
 from cvrunner.utils.logger import get_cv_logger
 from cvrunner.experiment import BaseExperiment, DataBatch, MetricType
-
 from src.wayformer.config import DatasetConfig
 from src.wayformer.wayformer import build_wayformer
 from src.wayformer.loss import WayformerLoss
@@ -45,7 +44,7 @@ class WayformerExperiment(BaseExperiment, ABC):
 
     @property
     def base_val_data_folder(self) -> str:
-        return "/home/leo/data/scenario_format_waymo/validation/"
+        return "/home/leo/data/scenario_format_waymo/training/"
 
     @property
     def batch_size(self) -> int:
@@ -72,15 +71,15 @@ class WayformerExperiment(BaseExperiment, ABC):
 
     @property
     def nhead(self) -> int:
-        return 2
+        return 8
 
     @property
     def dim_feedforward(self) -> int:
-        return 128
+        return 512
 
     @property
     def num_layers(self) -> int:
-        return 3
+        return 2
 
     @property
     def dropout(self) -> float:
@@ -100,7 +99,7 @@ class WayformerExperiment(BaseExperiment, ABC):
 
     @property
     def num_decoder_layers(self) -> int:
-        return 8
+        return 4
 
     @property
     def num_modes(self) -> int:
@@ -191,14 +190,16 @@ class WayformerExperiment(BaseExperiment, ABC):
             data_batch.get('traffic_light_masks', None),
         ) # (Axnum_modesxft_tsx4, Axnum_modesx1)
         label_pos = data_batch['label_pos']
+        label_mask = data_batch['label_mask']
 
         loss = loss_function(
             label_pos,
+            label_mask,
             output
         )
 
         loss['loss/loss'].backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.3)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.1)
         optimizer.step()
         lr_scheduler.step()
         return {k: v.item() for k, v in loss.items()}
@@ -225,8 +226,10 @@ class WayformerExperiment(BaseExperiment, ABC):
         ) # (Axnum_modesxft_tsx4, Axnum_modesx1)
 
         label_pos = data_batch['label_pos']
+        label_mask = data_batch['label_mask']
         loss = loss_function(
             label_pos,
+            label_mask,
             output
         )
         
@@ -235,7 +238,8 @@ class WayformerExperiment(BaseExperiment, ABC):
         metrics['images'] = visualize_scene(
             data_batch,
             output,
-            label_pos
+            label_pos,
+            label_mask
         )
         return metrics
 

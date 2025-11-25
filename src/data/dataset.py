@@ -1,6 +1,8 @@
 import os 
 import pickle
 import random
+import pandas as pd
+import numpy as np
 
 from typing import Literal, Tuple
 from torch.utils.data import Sampler, Dataset
@@ -12,43 +14,34 @@ class WaymoDataset(Dataset):
     def __init__(
         self,
         base_folder: str,
-        metadata_file: str = 'dataset_summary.pkl',
-        mapping_file: str = 'dataset_mapping.pkl',
         cache_size: int = 1000,
         partition: Literal['train', 'val', 'test'] = 'train'
     ):
         super().__init__()
+        if partition == 'train':
+            metadata_file = 'train_dataset.csv'
+        elif partition == 'val':
+            metadata_file = 'val_dataset.csv'
+        else:
+            metadata_file = '.csv'
         self.base_folder = base_folder
         self.metadata_path = os.path.join(base_folder, metadata_file)
-        self.mapping_path = os.path.join(base_folder, mapping_file)
         self.partition = partition
         assert os.path.exists(self.metadata_path), f"Metadata path {self.metadata_path} does not exist."
-        assert os.path.exists(self.mapping_path), f"Summary path {self.mapping_path} does not exist."
 
         # Read metadata
-        with open(self.metadata_path, 'rb') as f:
-            metadata = pickle.load(f)
+        metadata = pd.read_csv(self.metadata_path).to_dict(orient='records')
 
-        with open(self.mapping_path, 'rb') as f:
-            self.mapping = pickle.load(f)
-
-        self.index_to_key = {i: k for i, k in enumerate(self.mapping.keys())}
-        
         # Build tracks list
         self.tracks = []
-        for i, key in tqdm(enumerate(metadata), desc="Building track index"):
-            scene_meta = metadata[key]
-            sdc_index = scene_meta['sdc_track_index']
-            self.tracks.append((i, sdc_index))
-            for item in scene_meta['tracks_to_predict'].values():
-                self.tracks.append((i, item['track_index']))
-
-        if self.partition == 'train':
-            self.tracks = random.sample(self.tracks, k=10000)
-        elif self.partition == 'val':
-            self.tracks = random.sample(self.tracks, k=2000)
-        else:  # test
-            self.tracks = random.sample(self.tracks, k=2000)
+        self.mappings = {}
+        self.weights = []
+        for record in tqdm(metadata, desc="Building track index"):
+            track = (record['file_name'], record['track_id'])
+            self.mappings[record['file_name']] = record['par_folder']
+            self.tracks.append(track)
+            if partition == 'train':
+                self.weights.append(record['weight'])
 
         self.cache_size = cache_size
         self.cache = {}
@@ -56,17 +49,17 @@ class WaymoDataset(Dataset):
     def __len__(self):
         return len(self.tracks)
 
-    def __getitem__(self, index: Tuple[int, int]):
+    def __getitem__(self, index: Tuple[str, str]):
         if index in self.cache:
             return self.cache[index]
 
-        key = self.index_to_key[index[0]]
-        data_path = os.path.join(self.base_folder, self.mapping[key], key)
+        file, track_id = index
+        data_path = os.path.join(self.base_folder, self.mappings[file], file)
 
         with open(data_path, 'rb') as f:
             data = pickle.load(f)
 
-        train_data = data_sample(data, index[1])
+        train_data = data_sample(data, track_id)
 
         if len(self.cache) < self.cache_size:
             self.cache[index] = train_data
@@ -87,8 +80,19 @@ class WaymoSampler(Sampler):
         return len(self.data_source)
 
     def __iter__(self):
+        tracks = self.data_source.tracks
+        weights = getattr(self.data_source, "weights", None)
         if self.shuffle:
-            indices = self.data_source.tracks.copy()
-            random.shuffle(indices)
-            return iter(indices)
-        return iter(self.data_source.tracks)
+            if weights is not None and len(weights) == len(tracks) and np.sum(weights) > 0:
+                indices = np.random.choice(
+                    len(tracks),
+                    size=len(tracks),
+                    replace=True,
+                    p=np.array(weights) / np.sum(weights)
+                )
+                return (tracks[i] for i in indices)
+            else:
+                indices = tracks.copy()
+                random.shuffle(indices)
+                return iter(indices)
+        return iter(tracks)

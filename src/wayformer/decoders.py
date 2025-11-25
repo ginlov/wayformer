@@ -2,6 +2,49 @@ import torch
 from src.wayformer.utils import init_weights
 from src.wayformer.factories import get_multihead_attention, build_positional_embedding
 
+class TemporalTrajDecoder(torch.nn.Module):
+    """
+    Temporal Trajectory Decoder module for generating future trajectories based on encoded features.
+    """
+    def __init__(
+        self,
+        d_model:int,
+        nhead:int,
+        dim_feedforward:int,
+        dropout:float =0.1,
+        future_timesteps: int =40
+    ):
+        super().__init__()
+        self.time_queries = torch.nn.Parameter(torch.rand(future_timesteps, d_model))
+
+        self.layer = DecoderLayer(
+            d_model, nhead, dim_feedforward, dropout
+        )
+        self.proj = torch.nn.Linear(d_model, 4)
+
+    def forward(
+        self,
+        traj_present: torch.Tensor, # B x S_mem x D
+    ) -> torch.Tensor: # B x S_mem x D
+        """
+        Forward pass for the TemporalTrajDecoder.
+        Args:
+            memory (torch.Tensor): The encoded features from the encoder.
+            positional_encoding (torch.Tensor | None): Positional encoding tensor.
+
+        Returns:
+            torch.Tensor: The decoded trajectory features.
+        """        
+        B = traj_present.size(0)
+        query = self.time_queries.unsqueeze(0).expand(B, -1, -1)
+        h = self.layer(
+            query,
+            traj_present,
+            traj_present
+        )
+        traj = self.proj(h)
+        return traj # B x T_future x 4
+
 class DecoderLayer(torch.nn.Module):
     """
     Single decoder layer consisting of self-attention, cross-attention, and feed-forward network.
@@ -45,9 +88,9 @@ class DecoderLayer(torch.nn.Module):
             torch.Tensor: The output tensor after processing.
         """
         # Self-attention
-        self_attention_output = self.self_attn(query, query, query)[0]
+        query1 = self.norm1(query)
+        self_attention_output = self.self_attn(query1, query1, query1)[0]
         query = query + self.dropout(self_attention_output)
-        query = self.norm1(query)
 
         # Cross-attention
         if positional_encoding is not None:
@@ -61,7 +104,7 @@ class DecoderLayer(torch.nn.Module):
 
         # Feedforward with 1x1 conv: (N, S, E) -> (N, E, S) for Conv1d
         query_conv = query.transpose(1, 2)  # N x E x S
-        query1 = self.conv2(self.dropout(torch.relu(self.conv1(query_conv))))
+        query1 = self.conv2(self.dropout(torch.nn.functional.gelu(self.conv1(query_conv))))
         query1 = query1.transpose(1, 2)  # N x S x E
         query = query + self.dropout(query1)
         return self.norm3(query)
@@ -91,7 +134,7 @@ class TrajectoryDecoder(torch.nn.Module):
         """
         super().__init__()
         self.mode_query = torch.nn.Parameter(torch.empty(num_modes, d_model))
-        torch.nn.init.orthogonal_(self.mode_query)
+        torch.nn.init.orthogonal_(self.mode_query, gain=20)
         self.layers = torch.nn.ModuleList([
             DecoderLayer(
                 d_model, nhead, dim_feedforward, dropout

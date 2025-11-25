@@ -69,13 +69,14 @@ def rotate_velo(
     rotated = velo @ rot_mat.T
     return rotated
 
-def data_sample(scene, track_index: int):
+def data_sample(scene, track_index: str):
     current_ts = 10
 
-    tracks = list(scene['tracks'].values())
+    tracks = scene['tracks']
 
     # Agent features
-    track_to_train = tracks[track_index]['state']
+    track_to_train = tracks[str(track_index)]['state']
+    
     current_track_pos = track_to_train['position'][current_ts][:2].copy() # [2]
     current_track_heading = track_to_train['heading'][current_ts].copy() # scalar
     features = np.concatenate(
@@ -100,14 +101,16 @@ def data_sample(scene, track_index: int):
         current_track_pos, current_track_heading,
         track_to_train['position'][current_ts + 1:current_ts + 1 + DatasetConfig.future_timesteps, :2]
     ) # [feature_ts, 2]
+    label_mask = track_to_train['valid'][current_ts + 1:current_ts + 1 + DatasetConfig.future_timesteps] # [feature_ts]
     label_heading = rotate_heading(
         current_track_heading,
         track_to_train['heading'][current_ts + 1:current_ts + 1 + DatasetConfig.future_timesteps]
     ) # [feature_ts]
 
     # Agent interaction features
-    other_agents_pos = np.array([item['state']['position'][current_ts][:2] \
-        for i, item in enumerate(tracks) if i != track_index]) # [N, 2]
+    other_agents_pos = np.array([item[1]['state']['position'][current_ts][:2] \
+        for item in tracks.items() if item[0] != track_index]) # [N, 2]
+    other_agents_name = [item[0] for item in tracks.items() if item[0] != track_index]
 
     # Compute distance to selected track
     dists = np.linalg.norm(other_agents_pos - current_track_pos, axis=1) # [N]
@@ -124,7 +127,7 @@ def data_sample(scene, track_index: int):
     agent_interaction_features = []
     interaction_mask = []
     for idx in selected_indices:
-        other_track = tracks[idx]['state']
+        other_track = tracks[other_agents_name[idx]]['state']
         other_features = np.concatenate(
             [
                 rotate_pos(current_track_pos, current_track_heading,
@@ -326,6 +329,7 @@ def data_sample(scene, track_index: int):
         'traffic_light_mask': traffic_light_mask, # [11, num_traffic_lights]
         'label_pos': label_pos, # [fut_ts, 2]
         'label_heading': label_heading, # [fut_ts]
+        'label_mask': label_mask, # [fut_ts]
         'idx': f"{scene['id']}_{track_index}"
     }
 
@@ -431,11 +435,18 @@ def visualize_one_cv2(road_lines, hist_traj, future_traj, gt_traj, img_size=800,
 def visualize_scene(
     data_batch,
     predictions,
-    gt_traj # [A, ts, 2]
+    gt_traj,# [A, ts, 2]
+    gt_mask # [A, ts]
 ):
     road_lines = data_batch['road_features'][:, 0, :, :4].cpu().numpy()
-    hist_traj = data_batch['agent_features'][:, :, 0, :2].cpu().numpy()
-    gt_traj = gt_traj.cpu().numpy()
+    hist_traj = list(data_batch['agent_features'][:, :, 0, :2].cpu().numpy())
+    hist_mask = data_batch['agent_mask'][:, :, 0].cpu().numpy()
+    for i in range(len(hist_traj)):
+        hist_traj[i] = hist_traj[i][hist_mask[i]]
+    gt_traj = list(gt_traj.cpu().numpy())
+    gt_mask = gt_mask.cpu().numpy()
+    for i in range(len(gt_traj)):
+        gt_traj[i] = gt_traj[i][gt_mask[i]]
 
     traj_preds, mode_probs = predictions
 

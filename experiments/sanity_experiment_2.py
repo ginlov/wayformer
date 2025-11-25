@@ -26,7 +26,7 @@ class SanityExperiment(WayformerExperiment):
     @property
     def wandb_runname(self) -> str:
         now = datetime.now().strftime("%Y%m%d_%H%M%S")
-        return "10000_training_samples_cosine_scheduler2"
+        return "new_dataset_scheduler1"
         return f"sanity_check_{now}"
 
     @property
@@ -35,7 +35,7 @@ class SanityExperiment(WayformerExperiment):
 
     @property
     def val_freq(self) -> int:
-        return 3
+        return 1
 
     @property
     def batch_size(self) -> int:

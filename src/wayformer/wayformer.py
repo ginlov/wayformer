@@ -2,7 +2,7 @@ import torch
 
 from typing import Type
 from src.wayformer.encoders import SceneEncoder, build_encoder 
-from src.wayformer.decoders import TrajectoryDecoder
+from src.wayformer.decoders import TrajectoryDecoder, TemporalTrajDecoder
 from src.wayformer.factories import build_positional_embedding
 from src.wayformer.config import DatasetConfig
 class Wayformer(torch.nn.Module):
@@ -107,9 +107,11 @@ class Wayformer(torch.nn.Module):
         # Project to GMM parameters
         likelihoods = self.gmm_likelihood_projection(out) # [A, num_modes, 1]
         likelihoods = torch.softmax(likelihoods.squeeze(-1), dim=-1) # [A, num_modes]
-        gmm_params = self.gmm_param_projection(out) # [A, num_modes, future_timesteps * 4]
-        num_modes = out.shape[1]
-        gmm_params = gmm_params.view(A, num_modes, -1, 4) # [A, num_modes, future_timesteps, 4]
+
+        # GMM params
+        A, modes, d = out.shape
+        gmm_params = self.gmm_param_projection(out.reshape(A * modes, 1, d)) # [A, num_modes, future_timesteps * 4]
+        gmm_params = gmm_params.view(A, modes, -1, 4) # [A, num_modes, future_timesteps, 4]
         return (gmm_params, likelihoods)
 
 def build_wayformer(
@@ -142,8 +144,14 @@ def build_wayformer(
     trafic_light_pos_encoder = build_positional_embedding(datasetconfig.hist_timesteps+1, datasetconfig.num_traffic_lights, d_model)
 
     # gmm projections
+    gmm_param_projection = TemporalTrajDecoder(
+        d_model,
+        nhead,
+        dim_feedforward,
+        dropout,
+        future_timesteps=datasetconfig.future_timesteps
+    )
     gmm_likelihood_projection = torch.nn.Linear(d_model, 1)
-    gmm_param_projection = torch.nn.Linear(d_model, datasetconfig.future_timesteps * 4)
 
     model = Wayformer(
         encoder,
