@@ -23,7 +23,7 @@ class WaymoDataset(Dataset):
         elif partition == 'val':
             metadata_file = 'val_dataset.csv'
         else:
-            metadata_file = '.csv'
+            metadata_file = 'test_dataset.csv'
         self.base_folder = base_folder
         self.metadata_path = os.path.join(base_folder, metadata_file)
         self.partition = partition
