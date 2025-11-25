@@ -16,7 +16,7 @@ from src.wayformer.wayformer import build_wayformer
 from src.wayformer.loss import WayformerLoss
 from src.grpo.loss import GRPOLoss
 from src.grpo.reward import PathReward
-from src.data.dataset import WaymoDataset, WaymoSampler
+from src.data.dataset import WaymoDataset, GRPOSampler, WaymoSampler
 from src.data.utils import collate_fn, visualize_scene
 
 from runner.grpo_runner import GRPORunner
@@ -145,6 +145,7 @@ class GRPOExperiment(BaseExperiment, ABC):
             base_folder=self.base_data_folder if partition == "train" else self.base_val_data_folder,
             partition=partition
         )
+        dataset.weights = []
         return dataset
 
     def build_dataloader(self, partition: str) -> DataLoader:
@@ -171,7 +172,7 @@ class GRPOExperiment(BaseExperiment, ABC):
     ) -> Tuple[Optimizer, _LRScheduler]:
         optimizer = AdamW(
             model.parameters(),
-            lr=5e-4,
+            lr=1e-4,
             weight_decay=self.weight_decay
         )
 
@@ -225,11 +226,11 @@ class GRPOExperiment(BaseExperiment, ABC):
             output[1]
         )
 
-        loss.backward()
+        loss["loss/loss"].backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.1)
         optimizer.step()
         lr_scheduler.step()
-        return {"loss/loss": loss.item()}
+        return {k: v.item() for k, v in loss.items()}
 
     def val_step(
         self,

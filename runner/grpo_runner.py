@@ -1,11 +1,15 @@
 import itertools
 from typing import TYPE_CHECKING, Any
 import os
+import random
 
 import torch
+from torch.utils.data import DataLoader
 from cvrunner.runner import TrainRunner
 from cvrunner.utils.logger import get_cv_logger
 
+from src.data.dataset import WaymoSampler, GRPOSampler
+from src.data.utils import collate_fn
 from src.wayformer.utils import cal_grad_norm, cal_param_norm
 from src.grpo.reward import PathReward
 
@@ -41,8 +45,28 @@ class GRPORunner(TrainRunner):
 
         logger.info("Precomputing reference probabilities for GRPO.")
         self.ref_probs = {}
-        self.compute_reference_prob()
-        self.old_probs = self.ref_probs.copy()
+        original_dataset = self.experiment.build_dataset(partition='train')
+        original_dataloader = DataLoader(
+            self.experiment.build_dataset(partition='train'),
+            batch_size=self.experiment.batch_size,
+            shuffle=False,
+            num_workers=10,
+            collate_fn=collate_fn,
+            sampler=WaymoSampler(original_dataset)
+        )
+        self.sampler = GRPOSampler(
+            original_dataset,
+            15000
+        )
+        self.train_dataloader = DataLoader(
+            original_dataset,
+            batch_size=self.experiment.batch_size,
+            shuffle=False,
+            num_workers=10,
+            collate_fn=collate_fn,
+            sampler=self.sampler
+        )
+        self.compute_reference_prob(original_dataloader)
 
         logger.info("Initilize path reward")
         self.path_reward = PathReward()
@@ -50,13 +74,16 @@ class GRPORunner(TrainRunner):
         # For this only, frequency to recompute old probablities
         self.epoch = 0
 
-    def compute_reference_prob(self):
+    def compute_reference_prob(
+        self,
+        dataloader
+    ):
         logger.info("Computing reference probabilities for GRPO.")
         self.model.eval()
         with torch.no_grad():
             self.ref_probs = self.experiment.compute_ref_probs(
                 self.model,
-                self.train_dataloader,
+                dataloader,
                 self.device
             )
         logger.info("Reference probabilities computation completed.")
@@ -84,7 +111,9 @@ class GRPORunner(TrainRunner):
 
     def train_epoch_start(self):
         super().train_epoch_start()
-        if self.epoch % self.experiment.old_prob_recompute_freq == 0 and self.epoch != 0:
+        # Each epoch, limit to 1000 samples, RL does not need full dataset
+        if self.epoch % self.experiment.old_probs_recompute_freq == 0:
+            self.sampler.refresh()
             self.model.eval()
             with torch.no_grad():
                 self.old_probs = self.experiment.compute_ref_probs(

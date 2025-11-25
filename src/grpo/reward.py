@@ -4,7 +4,7 @@ from typing import Tuple
 
 
 class PathReward(torch.nn.Module):
-    def __init__(self, offset=6.0):
+    def __init__(self, offset=8.0):
         super().__init__()
         self.offset = offset
 
@@ -30,5 +30,5 @@ class PathReward(torch.nn.Module):
         l2_errors = torch.norm(traj_preds[..., :2] - targets_expanded, dim=-1) # [A, num_modes, ts]
         total_l2_errors = l2_errors.sum(dim=-1) # [A, num_modes]
 
-        return (-total_l2_errors + self.offset)**2
+        return -(total_l2_errors - self.offset)**3
 

@@ -96,3 +96,22 @@ class WaymoSampler(Sampler):
                 random.shuffle(indices)
                 return iter(indices)
         return iter(tracks)
+
+class GRPOSampler(Sampler):
+    def __init__(self, data_source: WaymoDataset, subset_size: int):
+        super().__init__(data_source)
+        self.data_source = data_source
+        self.subset_size = subset_size
+        self.tracks = []
+
+    def refresh(self):
+        # manually trigger new sample set
+        subset_size = min(self.subset_size, len(self.data_source.tracks))
+        tracks = random.sample(self.data_source.tracks, subset_size)
+        self.tracks = tracks
+
+    def __len__(self):
+        return self.subset_size
+
+    def __iter__(self):
+        return iter(self.tracks)

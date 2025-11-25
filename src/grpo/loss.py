@@ -39,4 +39,4 @@ class GRPOLoss(torch.nn.Module):
         kl_div = kl_div.sum(dim=1).mean()  # scalar
 
         total_loss = ppo_loss + self.beta * kl_div
-        return total_loss
+        return {"loss/loss": total_loss, "loss/ppo_loss": ppo_loss, "loss/kl_div": self.beta * kl_div}

@@ -30,12 +30,16 @@ class SanityExperiment(GRPOExperiment):
     @property
     def wandb_runname(self) -> str:
         now = datetime.now().strftime("%Y%m%d_%H%M%S")
-        return "grpo_run3"
+        return "grpo_run5_full_dataset_no_kl"
         return f"sanity_check_{now}"
 
     @property
+    def beta(self) -> float:
+        return 0.0
+
+    @property
     def num_epochs(self) -> int:
-        return 40
+        return 10
 
     @property
     def val_freq(self) -> int:
@@ -52,7 +56,7 @@ class SanityExperiment(GRPOExperiment):
     ) -> Tuple[Optimizer, _LRScheduler]:
         optimizer = AdamW(
             model.parameters(),
-            lr=3e-4,
+            lr=4e-4,
             weight_decay=self.weight_decay
         )
 
@@ -60,5 +64,11 @@ class SanityExperiment(GRPOExperiment):
             optimizer,
             T_max=self.num_eopchs * len_dataloader
         )
+
+        # scheduler = torch.optim.lr_scheduler.PolynomialLR(
+        #     optimizer,
+        #     total_iters=self.num_eopchs * len_dataloader,
+        #     power=0.95
+        # )
 
         return optimizer, scheduler
