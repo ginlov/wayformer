@@ -69,7 +69,7 @@ class GRPORunner(TrainRunner):
         self.compute_reference_prob(original_dataloader)
 
         logger.info("Initilize path reward")
-        self.path_reward = PathReward()
+        self.path_reward = self.experiment.reward_class()
 
         # For this only, frequency to recompute old probablities
         self.epoch = 0

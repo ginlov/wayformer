@@ -106,6 +106,9 @@ def data_sample(scene, track_index: str):
         current_track_heading,
         track_to_train['heading'][current_ts + 1:current_ts + 1 + DatasetConfig.future_timesteps]
     ) # [feature_ts]
+    
+    # Get agent future width to evaluate collision later
+    agent_future_width = track_to_train['width'][current_ts + 1:current_ts + 1 + DatasetConfig.future_timesteps] # [feature_ts]
 
     # Agent interaction features
     other_agents_pos = np.array([item[1]['state']['position'][current_ts][:2] \
@@ -166,6 +169,47 @@ def data_sample(scene, track_index: str):
             mode='constant',
             constant_values=False
         ) # [length, num_near_agents]
+
+    # Get other agents future trajectories and widths for collision evaluation
+    other_agents_future_pos = []
+    other_agents_future_width = []
+    other_agents_future_mask = []
+    for idx in selected_indices:
+        other_track = tracks[other_agents_name[idx]]['state']
+        other_future_pos = rotate_pos(
+            current_track_pos, current_track_heading,
+            other_track['position'][current_ts + 1:current_ts + 1 + DatasetConfig.future_timesteps, :2]
+        ) # [feature_ts, 2]
+        other_agents_future_pos.append(other_future_pos)
+
+        other_future_width = other_track['width'][current_ts + 1:current_ts + 1 + DatasetConfig.future_timesteps] # [feature_ts]
+        other_agents_future_width.append(other_future_width)
+        other_agents_future_mask.append(other_track['valid'][current_ts + 1:current_ts + 1 + DatasetConfig.future_timesteps]) # [feature_ts]
+    other_agents_future_pos = np.stack(other_agents_future_pos, axis=0) # [num_near_agents, feature_ts, 2]
+    other_agents_future_width = np.stack(other_agents_future_width, axis=0) # [num_near_agents, feature_ts]
+    other_agents_future_mask = np.stack(other_agents_future_mask, axis=0) # [num_near_agents, feature_ts]
+
+    # Padding if needed
+    pad_size = num_near_agents - len(selected_indices)
+    if pad_size > 0:
+        other_agents_future_pos = np.pad(
+            other_agents_future_pos,
+            ((0, pad_size), (0, 0), (0, 0)),
+            mode='constant',
+            constant_values=0
+        ) # [num_near_agents, feature_ts, 2]
+        other_agents_future_width = np.pad(
+            other_agents_future_width,
+            ((0, pad_size), (0, 0)),
+            mode='constant',
+            constant_values=0
+        ) # [num_near_agents, feature_ts]
+        other_agents_future_mask = np.pad(
+            other_agents_future_mask,
+            ((0, pad_size), (0, 0)),
+            mode='constant',
+            constant_values=False
+        ) # [num_near_agents, feature_ts]
 
     # Road features
     # Find nearest polyline and polygon segments
@@ -330,7 +374,11 @@ def data_sample(scene, track_index: str):
         'label_pos': label_pos, # [fut_ts, 2]
         'label_heading': label_heading, # [fut_ts]
         'label_mask': label_mask, # [fut_ts]
-        'idx': f"{scene['id']}_{track_index}"
+        'idx': f"{scene['id']}_{track_index}",
+        'agent_future_width': agent_future_width, # [fut_ts]
+        'other_agents_future_pos': other_agents_future_pos, # [num_near_agents, fut_ts, 2]
+        'other_agents_future_width': other_agents_future_width, # [num_near_agents, fut_ts]
+        'other_agents_future_mask': other_agents_future_mask,
     }
 
 def collate_fn(batch):

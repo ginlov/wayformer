@@ -34,7 +34,6 @@ def check_collision_for_trajectory(
     assert trajectories_of_interest.shape[0] == other_trajectories.shape[0], f"Batch sizes must match, got {trajectories_of_interest.shape[0]} and {other_trajectories.shape[0]}"
     assert trajectories_of_interest.shape[2] == other_trajectories.shape[2], f"Trajectory lengths must match got {trajectories_of_interest.shape[2]} and {other_trajectories.shape[2]}"
 
-    masks_of_interest = masks_of_interest.bool()
     B = trajectories_of_interest.shape[0]
     k = trajectories_of_interest.shape[1]
     n = other_trajectories.shape[1]
@@ -112,7 +111,7 @@ class PathReward(torch.nn.Module):
         l2_errors = torch.norm(traj_preds[..., :2] - targets_expanded, dim=-1) # [A, num_modes, ts]
         total_l2_errors = l2_errors.sum(dim=-1) # [A, num_modes]
 
-        return {"total_reward":-(total_l2_errors - self.offset)**3}
+        return -(total_l2_errors - self.offset)**3
 
 
 class PathRewardWithCollision(torch.nn.Module):
@@ -152,14 +151,13 @@ class PathRewardWithCollision(torch.nn.Module):
             trajectories_of_interest=traj_preds[..., :2], # [A, num_modes, ts, 2]
             masks_of_interest=target_mask_expanded, # [A, num_modes, ts]
             widths_of_interest=traj_width, # [A, num_modes, ts]
-            other_trajectories=other_fut_trajs,
-            other_masks=other_fut_masks,
+            other_trajectories=other_fut_trajs.permute(0, 2, 1, 3), # [A, n, ts, 2]
+            other_masks=other_fut_masks.permute(0, 2, 1), # [A, n, ts]
             other_widths=other_fut_widths, # [A, n]
             collision_threshold=0.0
         ) # [A, num_modes, n]
 
         collision_matrix = collision_matrix.sum(dim=-1)
 
-        total = -(total_l2_errors - self.offset) - collision_matrix * 100
-        return {"total_reward": total, "collision_penalty": -collision_matrix * 100, "l2_error_penalty": -(total_l2_errors - self.offset)}
+        return -(total_l2_errors - self.offset) - collision_matrix * 100
 

@@ -15,7 +15,7 @@ from src.wayformer.config import DatasetConfig
 from src.wayformer.wayformer import build_wayformer
 from src.wayformer.loss import WayformerLoss
 from src.grpo.loss import GRPOLoss
-from src.grpo.reward import PathReward
+from src.grpo.reward import PathReward, PathRewardWithCollision
 from src.data.dataset import WaymoDataset, GRPOSampler, WaymoSampler
 from src.data.utils import collate_fn, visualize_scene
 
@@ -26,6 +26,10 @@ logger = get_cv_logger()
 class GRPOExperiment(BaseExperiment, ABC):
     def __init__(self):
         pass
+
+    @property
+    def reward_class(self):
+        return PathRewardWithCollision
 
     @property
     def old_probs_recompute_freq(self) -> int:
@@ -216,14 +220,19 @@ class GRPOExperiment(BaseExperiment, ABC):
         rewards = data_batch['reward_fn'](
             label_pos,
             label_mask,
-            output
+            output,
+            data_batch['agent_future_width'],
+            data_batch['other_agents_future_pos'],
+            data_batch['other_agents_future_mask'],
+            data_batch['other_agents_future_width']
+
         ) # [A, num_modes]
 
         loss = loss_function(
-            rewards,
+            rewards["total_reward"],
             data_batch['ref_probs'],
             data_batch['old_probs'],
-            output[1]
+            output[1],
         )
 
         loss["loss/loss"].backward()
@@ -258,12 +267,16 @@ class GRPOExperiment(BaseExperiment, ABC):
         rewards = data_batch['reward_fn'](
             label_pos,
             label_mask,
-            output
+            output,
+            data_batch['agent_future_width'],
+            data_batch['other_agents_future_pos'],
+            data_batch['other_agents_future_mask'],
+            data_batch['other_agents_future_width']
         ) # [A, num_modes]
 
-        rewards = rewards * output[1]
+        rewards = {k: v * output[1] for k, v in rewards.items()}
 
-        metrics = {'val/rewards': rewards.mean().item()}
+        metrics = {'val/' + k: v.mean().item() for k, v in rewards.items()}
 
         # metrics['images'] = visualize_scene(
         #     data_batch,
