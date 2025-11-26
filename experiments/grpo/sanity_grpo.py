@@ -20,18 +20,18 @@ from experiments.grpo_experiment import GRPOExperiment
 
 class SanityExperiment(GRPOExperiment):
     @property
+    def old_probs_recompute_freq(self) -> int:
+        return 1
+
+    @property
     def sanity_check(self) -> bool:
         return True 
 
     @property
     def wandb_runname(self) -> str:
         now = datetime.now().strftime("%Y%m%d_%H%M%S")
-        return "grpo_run4_no_kl"
+        return "grpo_run3"
         return f"sanity_check_{now}"
-
-    @property
-    def beta(self) -> float:
-        return 0.0
 
     @property
     def num_epochs(self) -> int:
@@ -58,7 +58,7 @@ class SanityExperiment(GRPOExperiment):
 
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer,
-            T_max=self.num_eopchs * len_dataloader
+            T_max=self.num_epochs * len_dataloader
         )
 
         return optimizer, scheduler

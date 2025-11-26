@@ -6,29 +6,53 @@ from torch.utils.data import DataLoader
 from torch.optim import AdamW, Optimizer
 from torch.optim.lr_scheduler import _LRScheduler
 
+from tqdm import tqdm
+
 from cvrunner.runner import BaseRunner
 from cvrunner.utils.logger import get_cv_logger
 from cvrunner.experiment import BaseExperiment, DataBatch, MetricType
 from src.wayformer.config import DatasetConfig
 from src.wayformer.wayformer import build_wayformer
 from src.wayformer.loss import WayformerLoss
-from src.data.dataset import WaymoDataset, WaymoSampler
+from src.grpo.loss import GRPOLoss
+from src.grpo.reward import PathReward, PathRewardWithCollision
+from src.data.dataset import WaymoDataset, GRPOSampler, WaymoSampler
 from src.data.utils import collate_fn, visualize_scene
 
-from runner.wayformer_runner import WayformerRunner
+from runner.grpo_runner import GRPORunner
 
 logger = get_cv_logger()
 
-class WayformerExperiment(BaseExperiment, ABC):
+class GRPOExperiment(BaseExperiment, ABC):
     def __init__(self):
         pass
+
+    @property
+    def reward_class(self):
+        return PathRewardWithCollision
+
+    @property
+    def old_probs_recompute_freq(self) -> int:
+        return 3
+
+    @property
+    def checkpoint_path(self) -> str:
+        return "/home/leo/Projects/ds190/wayformer/checkpoints/new_dataset_scheduler1/checkpoint_step_4446.pt"
+
+    @property
+    def epsilon(self) -> float:
+        return 0.2
+
+    @property
+    def beta(self) -> float:
+        return 0.01
 
     @property
     def val_freq(self) -> int:
         return 2
 
     def runner_cls(self) -> Type[BaseRunner]:
-        return WayformerRunner
+        return GRPORunner
 
     @property
     def sanity_check(self) -> bool:
@@ -36,7 +60,7 @@ class WayformerExperiment(BaseExperiment, ABC):
 
     @property
     def wandb_project(self) -> str:
-        return "Wayformer"
+        return "GRPO_Wayformer"
 
     @property
     def base_data_folder(self) -> str:
@@ -55,7 +79,7 @@ class WayformerExperiment(BaseExperiment, ABC):
         return 10e-3
 
     @property
-    def num_eopchs(self) -> int:
+    def num_epochs(self) -> int:
         return 30
 
     @property
@@ -125,12 +149,13 @@ class WayformerExperiment(BaseExperiment, ABC):
             base_folder=self.base_data_folder if partition == "train" else self.base_val_data_folder,
             partition=partition
         )
+        dataset.weights = []
         return dataset
 
     def build_dataloader(self, partition: str) -> DataLoader:
         dataset = self.build_dataset(partition=partition)
 
-        sampler = WaymoSampler(dataset, shuffle=(partition == "train"))
+        sampler = WaymoSampler(dataset, shuffle=False)
 
         dataloader = DataLoader(
             dataset,
@@ -142,7 +167,7 @@ class WayformerExperiment(BaseExperiment, ABC):
         return dataloader
 
     def build_loss_function(self) -> torch.nn.Module:
-        return WayformerLoss()
+        return GRPOLoss(self.epsilon, self.beta)
 
     def build_optimizer_scheduler(
         self,
@@ -151,18 +176,18 @@ class WayformerExperiment(BaseExperiment, ABC):
     ) -> Tuple[Optimizer, _LRScheduler]:
         optimizer = AdamW(
             model.parameters(),
-            lr=5e-4,
+            lr=1e-4,
             weight_decay=self.weight_decay
         )
 
         # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         #     optimizer,
-        #     T_max=self.num_eopchs * len_dataloader
+        #     T_max=self.num_epochs * len_dataloader
         # )
         scheduler = torch.optim.lr_scheduler.ConstantLR(
             optimizer,
             factor=1.0,
-            total_iters=self.num_eopchs * len_dataloader
+            total_iters=self.num_epochs * len_dataloader
         )
 
         return optimizer, scheduler
@@ -184,21 +209,33 @@ class WayformerExperiment(BaseExperiment, ABC):
             data_batch['agent_interaction_features'],
             data_batch['road_features'],
             data_batch['traffic_light_features'],
-            data_batch.get('agent_masks', None),
-            data_batch.get('agent_interaction_masks', None),
-            data_batch.get('road_masks', None),
-            data_batch.get('traffic_light_masks', None),
+            data_batch.get('agent_mask', None),
+            data_batch.get('agent_interaction_mask', None),
+            data_batch.get('road_mask', None),
+            data_batch.get('traffic_light_mask', None),
         ) # (Axnum_modesxft_tsx4, Axnum_modesx1)
         label_pos = data_batch['label_pos']
         label_mask = data_batch['label_mask']
 
-        loss = loss_function(
+        rewards = data_batch['reward_fn'](
             label_pos,
             label_mask,
-            output
+            output,
+            data_batch['agent_future_width'],
+            data_batch['other_agents_future_pos'],
+            data_batch['other_agents_future_mask'],
+            data_batch['other_agents_future_width']
+
+        ) # [A, num_modes]
+
+        loss = loss_function(
+            rewards["total_reward"],
+            data_batch['ref_probs'],
+            data_batch['old_probs'],
+            output[1],
         )
 
-        loss['loss/loss'].backward()
+        loss["loss/loss"].backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=0.1)
         optimizer.step()
         lr_scheduler.step()
@@ -219,28 +256,34 @@ class WayformerExperiment(BaseExperiment, ABC):
             data_batch['agent_interaction_features'],
             data_batch['road_features'],
             data_batch['traffic_light_features'],
-            data_batch.get('agent_masks', None),
-            data_batch.get('agent_interaction_masks', None),
-            data_batch.get('road_masks', None),
-            data_batch.get('traffic_light_masks', None),
+            data_batch.get('agent_mask', None),
+            data_batch.get('agent_interaction_mask', None),
+            data_batch.get('road_mask', None),
+            data_batch.get('traffic_light_mask', None),
         ) # (Axnum_modesxft_tsx4, Axnum_modesx1)
-
         label_pos = data_batch['label_pos']
         label_mask = data_batch['label_mask']
-        loss = loss_function(
+
+        rewards = data_batch['reward_fn'](
             label_pos,
             label_mask,
-            output
-        )
-        
-        metrics = {'val/' + k.split('/')[1]: v.item() for k, v in loss.items()}
-
-        metrics['images'] = visualize_scene(
-            data_batch,
             output,
-            label_pos,
-            label_mask
-        )
+            data_batch['agent_future_width'],
+            data_batch['other_agents_future_pos'],
+            data_batch['other_agents_future_mask'],
+            data_batch['other_agents_future_width']
+        ) # [A, num_modes]
+
+        rewards = {k: v * output[1] for k, v in rewards.items()}
+
+        metrics = {'val/' + k: v.mean().item() for k, v in rewards.items()}
+
+        # metrics['images'] = visualize_scene(
+        #     data_batch,
+        #     output,
+        #     label_pos,
+        #     label_mask
+        # )
         return metrics
 
     def load_checkpoint(self) -> None:
@@ -248,3 +291,32 @@ class WayformerExperiment(BaseExperiment, ABC):
 
     def save_checkpoint(self) -> None:
         pass
+
+    def compute_ref_probs(
+        self,
+        model: torch.nn.Module,
+        dataloader: DataLoader,
+        device: str = 'cpu'
+    ) -> Dict[Any, torch.Tensor]:
+        ref_probs = {}
+        for data_batch in tqdm(dataloader):
+            data_batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in data_batch.items()}
+
+            output = model(
+                data_batch['agent_features'],
+                data_batch['agent_interaction_features'],
+                data_batch['road_features'],
+                data_batch['traffic_light_features'],
+                data_batch.get('agent_mask', None),
+                data_batch.get('agent_interaction_mask', None),
+                data_batch.get('road_mask', None),
+                data_batch.get('traffic_light_mask', None),
+            ) # (Axnum_modesxft_tsx4, Axnum_modesx1)
+
+            idx = data_batch['idx']
+            gmm_likelihoods = output[1]  # [A, num_modes]
+ 
+            ref_probs.update({
+                item: gmm_likelihoods[i].detach() for i, item in enumerate(idx)
+            })
+        return ref_probs
