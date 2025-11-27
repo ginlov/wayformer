@@ -510,3 +510,33 @@ def visualize_scene(
         )
         out_imgs.append(img)
     return out_imgs
+
+def pad_in_case_empty_context(
+    input_tensor: torch.Tensor, # [B, T, S, D]
+    input_mask: torch.Tensor,   # [B, T, S]
+):
+    """
+    A utility function to pad input tensors in case of empty context,
+    for example no traffic lights in the scene.
+
+    Without this, the model may crasd due to output of the MHA layers
+    being NaN.
+    """
+    B, T, S, D = input_tensor.shape
+    mask = input_mask.sum(dim=(1, 2)) == 0  # [B], True if empty context
+
+    if mask.any():
+        # Find where to pad
+        pad_indices = torch.where(mask)[0] # [num_pad]
+        # Create padding tensors
+        pad_tensor = torch.zeros((len(pad_indices), T, S, D), device=input_tensor.device, dtype=input_tensor.dtype)
+        pad_mask = torch.ones((len(pad_indices), T, S), device=input_mask.device, dtype=input_mask.dtype)
+        # Don't do it in-place to avoid potential issues with autograd
+        # Change input_tensor and input_mask where needed
+        input_tensor = input_tensor.clone()
+        input_mask = input_mask.clone()
+        input_tensor[pad_indices] = pad_tensor
+        input_mask[pad_indices] = pad_mask
+
+    return input_tensor, input_mask
+

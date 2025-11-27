@@ -18,15 +18,15 @@ from runner.wayformer_runner import WayformerRunner
 from experiments.base_experiments.wayformer_experiment import WayformerExperiment
 
 
-class SanityExperiment(WayformerExperiment):
+class BaselineExperiment(WayformerExperiment):
     @property
     def sanity_check(self) -> bool:
-        return True 
+        return False
 
     @property
     def wandb_runname(self) -> str:
         now = datetime.now().strftime("%Y%m%d_%H%M%S")
-        return "new_dataset_scheduler1"
+        return f"15000_100_epochs_{now}"
         return f"sanity_check_{now}"
 
     @property

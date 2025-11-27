@@ -15,7 +15,7 @@ from src.data.dataset import WaymoDataset
 from src.wayformer.wayformer import build_wayformer
 
 from runner.wayformer_runner import WayformerRunner
-from experiments.wayformer_experiment import WayformerExperiment
+from experiments.base_experiments.wayformer_experiment import WayformerExperiment
 
 
 class SanityExperiment(WayformerExperiment):
@@ -26,12 +26,11 @@ class SanityExperiment(WayformerExperiment):
     @property
     def wandb_runname(self) -> str:
         now = datetime.now().strftime("%Y%m%d_%H%M%S")
-        return "new_dataset_test1"
-        return f"sanity_check_{now}"
+        return "sanity_check"
 
     @property
     def num_epochs(self) -> int:
-        return 20
+        return 2
 
     @property
     def val_freq(self) -> int:
@@ -40,3 +39,17 @@ class SanityExperiment(WayformerExperiment):
     @property
     def batch_size(self) -> int:
         return 64
+
+    def build_dataset(self, partition):
+        dataset = super().build_dataset(partition)
+        dataset.tracks = dataset.tracks[:64]
+        dataset.weights = dataset.weights[:64]
+        return dataset
+
+    # def build_model(self) -> torch.nn.Module:
+    #     model = super().build_model()
+    #     for name, param in model.named_parameters():
+    #         if "encoder" not in name:
+    #             param.requires_grad = False
+    #
+    #     return model

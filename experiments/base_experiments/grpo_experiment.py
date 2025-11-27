@@ -17,7 +17,7 @@ from src.wayformer.loss import WayformerLoss
 from src.grpo.loss import GRPOLoss
 from src.grpo.reward import PathReward, PathRewardWithCollision
 from src.data.dataset import WaymoDataset, GRPOSampler, WaymoSampler
-from src.data.utils import collate_fn, visualize_scene
+from src.data.utils import collate_fn, visualize_scene, pad_in_case_empty_context
 
 from runner.grpo_runner import GRPORunner
 
@@ -204,16 +204,33 @@ class GRPOExperiment(BaseExperiment, ABC):
         optimizer.zero_grad()
         data_batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in data_batch.items()}
 
+        # Pad surrounding environment features
+        agent_interaction_features, agent_interaction_mask = pad_in_case_empty_context(
+            data_batch['agent_interaction_features'],
+            data_batch['agent_interaction_mask'],
+        )
+
+        road_features, road_mask = pad_in_case_empty_context(
+            data_batch['road_features'],
+            data_batch['road_mask'],
+        )
+
+        traffic_light_features, traffic_light_mask = pad_in_case_empty_context(
+            data_batch['traffic_light_features'],
+            data_batch['traffic_light_mask'],
+        )
+
         output = model(
             data_batch['agent_features'],
-            data_batch['agent_interaction_features'],
-            data_batch['road_features'],
-            data_batch['traffic_light_features'],
-            data_batch.get('agent_mask', None),
-            data_batch.get('agent_interaction_mask', None),
-            data_batch.get('road_mask', None),
-            data_batch.get('traffic_light_mask', None),
+            agent_interaction_features,
+            road_features,
+            traffic_light_features,
+            ~data_batch['agent_mask'],
+            ~agent_interaction_mask,
+            ~road_mask,
+            ~traffic_light_mask,
         ) # (Axnum_modesxft_tsx4, Axnum_modesx1)
+
         label_pos = data_batch['label_pos']
         label_mask = data_batch['label_mask']
 
@@ -251,16 +268,33 @@ class GRPOExperiment(BaseExperiment, ABC):
     ) -> Dict[str, Any]:
         data_batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in data_batch.items()}
 
+        # Pad surrounding environment features
+        agent_interaction_features, agent_interaction_mask = pad_in_case_empty_context(
+            data_batch['agent_interaction_features'],
+            data_batch['agent_interaction_mask'],
+        )
+
+        road_features, road_mask = pad_in_case_empty_context(
+            data_batch['road_features'],
+            data_batch['road_mask'],
+        )
+
+        traffic_light_features, traffic_light_mask = pad_in_case_empty_context(
+            data_batch['traffic_light_features'],
+            data_batch['traffic_light_mask'],
+        )
+
         output = model(
             data_batch['agent_features'],
-            data_batch['agent_interaction_features'],
-            data_batch['road_features'],
-            data_batch['traffic_light_features'],
-            data_batch.get('agent_mask', None),
-            data_batch.get('agent_interaction_mask', None),
-            data_batch.get('road_mask', None),
-            data_batch.get('traffic_light_mask', None),
+            agent_interaction_features,
+            road_features,
+            traffic_light_features,
+            ~data_batch['agent_mask'],
+            ~agent_interaction_mask,
+            ~road_mask,
+            ~traffic_light_mask,
         ) # (Axnum_modesxft_tsx4, Axnum_modesx1)
+
         label_pos = data_batch['label_pos']
         label_mask = data_batch['label_mask']
 
