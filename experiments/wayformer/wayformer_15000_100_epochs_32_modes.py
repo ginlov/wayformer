@@ -12,39 +12,30 @@ from torch.optim import AdamW, Optimizer
 from torch.optim.lr_scheduler import _LRScheduler
 
 from src.data.dataset import WaymoDataset
-from src.grpo.reward import PathRewardWithCollision
 from src.wayformer.wayformer import build_wayformer
 
 from runner.wayformer_runner import WayformerRunner
-from experiments.base_experiments.grpo_experiment import GRPOExperiment
+from experiments.base_experiments.wayformer_experiment import WayformerExperiment
 
 
-class GRPOWithCollision(GRPOExperiment):
+class BaselineExperiment(WayformerExperiment):
     @property
-    def checkpoint_path(self) -> str:
-        return "/home/leo/Projects/ds190/wayformer/checkpoints/15000_100_epochs_20251127_004614/checkpoint_step_11232.pt"
-
-    @property
-    def reward_class(self):
-        return PathRewardWithCollision
-
-    @property
-    def old_probs_recompute_freq(self) -> int:
-        return 1
+    def sanity_check(self) -> bool:
+        return False
 
     @property
     def wandb_runname(self) -> str:
         now = datetime.now().strftime("%Y%m%d_%H%M%S")
-        return f"grpo_run5_full_dataset_no_kl_collision_{now}"
+        return f"15000_100_epochs_32_modes_{now}"
         return f"sanity_check_{now}"
 
     @property
-    def beta(self) -> float:
-        return 0.0
+    def num_epochs(self) -> int:
+        return 100
 
     @property
-    def num_epochs(self) -> int:
-        return 10
+    def num_modes(self) -> int:
+        return 32
 
     @property
     def val_freq(self) -> int:
@@ -61,7 +52,7 @@ class GRPOWithCollision(GRPOExperiment):
     ) -> Tuple[Optimizer, _LRScheduler]:
         optimizer = AdamW(
             model.parameters(),
-            lr=4e-4,
+            lr=5e-4,
             weight_decay=self.weight_decay
         )
 
@@ -69,11 +60,5 @@ class GRPOWithCollision(GRPOExperiment):
             optimizer,
             T_max=self.num_epochs * len_dataloader
         )
-
-        # scheduler = torch.optim.lr_scheduler.PolynomialLR(
-        #     optimizer,
-        #     total_iters=self.num_epochs * len_dataloader,
-        #     power=0.95
-        # )
 
         return optimizer, scheduler

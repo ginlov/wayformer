@@ -16,10 +16,14 @@ from src.grpo.reward import PathRewardWithCollision
 from src.wayformer.wayformer import build_wayformer
 
 from runner.wayformer_runner import WayformerRunner
-from experiments.grpo_experiment import GRPOExperiment
+from experiments.base_experiments.grpo_experiment import GRPOExperiment
 
 
-class SanityExperiment(GRPOExperiment):
+class GRPOWithCollisionKL(GRPOExperiment):
+    @property
+    def checkpoint_path(self) -> str:
+        return "/home/leo/Projects/ds190/wayformer/checkpoints/15000_100_epochs_20251127_004614/checkpoint_step_11232.pt"
+
     @property
     def reward_class(self):
         return PathRewardWithCollision
@@ -29,13 +33,9 @@ class SanityExperiment(GRPOExperiment):
         return 1
 
     @property
-    def sanity_check(self) -> bool:
-        return True 
-
-    @property
     def wandb_runname(self) -> str:
         now = datetime.now().strftime("%Y%m%d_%H%M%S")
-        return "grpo_run5_full_dataset_kl_collision"
+        return f"grpo_run5_full_dataset_kl_collision_{now}"
         return f"sanity_check_{now}"
 
     @property

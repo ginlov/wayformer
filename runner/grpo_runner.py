@@ -74,6 +74,11 @@ class GRPORunner(TrainRunner):
         # For this only, frequency to recompute old probablities
         self.epoch = 0
 
+        # Get checkpoint folder for consistency
+        self.checkpoint_folder = os.path.join('checkpoints', logger._wandb_runname) \
+                            if logger._wandb_runname else os.path.join('checkpoints', self.experiment.wandb_runname)
+        logger.info(f"Checkpoint folder: {self.checkpoint_folder}")
+
     def compute_reference_prob(
         self,
         dataloader
@@ -170,7 +175,7 @@ class GRPORunner(TrainRunner):
     def checkpoint(self):
         super().checkpoint()
         logger.info(f"Checkpoint saved at step {self.step}.")
-        checkpoint_path = os.path.join('checkpoints', self.experiment.wandb_runname, f'checkpoint_step_{self.step}.pt')
+        checkpoint_path = os.path.join('checkpoints', self.checkpoint_folder, f'checkpoint_step_{self.step}.pt')
         os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
         torch.save({
             'model_state_dict': self.model.state_dict(),

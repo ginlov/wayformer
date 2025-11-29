@@ -60,12 +60,13 @@ class WayformerLoss(torch.nn.Module):
 
         # Weighted L2 mean regularization
         # Further timestep should be regularized more heavily
-        l2_mean_reg = torch.norm((targets - best_mode_mean) * time_weights.unsqueeze(2), dim=-1).mean() # scalar
+        with torch.no_grad():
+            l2_mean_reg = torch.norm((targets - best_mode_mean) * time_weights.unsqueeze(2), dim=-1).mean() # scalar
 
-        total_loss = log_likelihood_loss + traj_nll_loss + 0.1 * l2_mean_reg
+        total_loss = log_likelihood_loss + traj_nll_loss
         return {'loss/loss': total_loss,
                 'loss/classification_loss': log_likelihood_loss,
                 'loss/regression_loss': traj_nll_loss,
                 'loss/l2_std_reg_for_tracking': l2_std_reg,
-                'loss/l2_mean_reg': 0.1*l2_mean_reg}
+                'loss/l2_mean_reg_for_tracking': l2_mean_reg}
 

@@ -31,6 +31,10 @@ class WayformerRunner(TrainRunner):
         num_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
         logger.info(f"Number of trainable parameters: {num_params}.")
         logger.info("WayformerRunner initialized.")
+        # Get checkpoint folder for consistency
+        self.checkpoint_folder = os.path.join('checkpoints', logger._wandb_runname) \
+                            if logger._wandb_runname else os.path.join('checkpoints', self.experiment.wandb_runname)
+        logger.info(f"Checkpoint folder: {self.checkpoint_folder}")
 
     def run(self):
         logger.info(f"Starting training for {self.experiment.num_epochs} epochs.")
@@ -94,7 +98,7 @@ class WayformerRunner(TrainRunner):
     def checkpoint(self):
         super().checkpoint()
         logger.info(f"Checkpoint saved at step {self.step}.")
-        checkpoint_path = os.path.join('checkpoints', self.experiment.wandb_runname, f'checkpoint_step_{self.step}.pt')
+        checkpoint_path = os.path.join('checkpoints', self.checkpoint_folder, f'checkpoint_step_{self.step}.pt')
         os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
         torch.save({
             'model_state_dict': self.model.state_dict(),
