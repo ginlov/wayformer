@@ -9,7 +9,7 @@ from cvrunner.utils.logger import get_cv_logger
 from src.wayformer.utils import cal_grad_norm, cal_param_norm
 
 if TYPE_CHECKING:
-    from experiments.wayformer_experiment import WayformerExperiment
+    from experiments.base_experiments.wayformer_experiment import WayformerExperiment
 
 logger = get_cv_logger()
 
@@ -98,7 +98,7 @@ class WayformerRunner(TrainRunner):
     def checkpoint(self):
         super().checkpoint()
         logger.info(f"Checkpoint saved at step {self.step}.")
-        checkpoint_path = os.path.join('checkpoints', self.checkpoint_folder, f'checkpoint_step_{self.step}.pt')
+        checkpoint_path = os.path.join(self.checkpoint_folder, f'checkpoint_step_{self.step}.pt')
         os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
         torch.save({
             'model_state_dict': self.model.state_dict(),

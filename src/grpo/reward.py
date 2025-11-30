@@ -23,8 +23,7 @@ def check_collision_for_trajectory(
         other_widths: [B, n] or [B, n, m+1] tensor of widths for other vehicles
         collision_threshold: additional safety margin in meters (default 0.0)
     
-    Returns:
-        collision_matrix: [B, k, n] boolean tensor where collision_matrix[b, i, j] = True 
+    Returns: collision_matrix: [B, k, n] boolean tensor where collision_matrix[b, i, j] = True 
                          if trajectories_of_interest[b, i] collides with other_trajectories[b, j]
     """
     assert trajectories_of_interest.dim() == 4, "trajectories_of_interest must be [B, k, m+1, 2]"
@@ -112,7 +111,7 @@ class PathReward(torch.nn.Module):
         l2_errors = torch.norm(traj_preds[..., :2] - targets_expanded, dim=-1) # [A, num_modes, ts]
         total_l2_errors = l2_errors.sum(dim=-1) # [A, num_modes]
 
-        return {"total_reward":-(total_l2_errors - self.offset)**3}
+        return {"total_reward":-(total_l2_errors - self.offset)}
 
 
 class PathRewardWithCollision(torch.nn.Module):

@@ -12,21 +12,21 @@ from torch.optim import AdamW, Optimizer
 from torch.optim.lr_scheduler import _LRScheduler
 
 from src.data.dataset import WaymoDataset
-from src.grpo.reward import PathRewardWithCollision
+from src.grpo.reward import PathReward
 from src.wayformer.wayformer import build_wayformer
 
 from runner.wayformer_runner import WayformerRunner
 from experiments.base_experiments.grpo_experiment import GRPOExperiment
 
 
-class GRPOWithCollisionKL(GRPOExperiment):
+class GRPOL2OnlyKL(GRPOExperiment):
     @property
     def checkpoint_path(self) -> str:
         return "/home/leo/Projects/ds190/wayformer/checkpoints/15000_100_epochs_20251127_004614/checkpoint_step_11232.pt"
 
     @property
     def reward_class(self):
-        return PathRewardWithCollision
+        return PathReward
 
     @property
     def old_probs_recompute_freq(self) -> int:
@@ -39,7 +39,7 @@ class GRPOWithCollisionKL(GRPOExperiment):
     @property
     def wandb_runname(self) -> str:
         now = datetime.now().strftime("%Y%m%d_%H%M%S")
-        return f"grpo_run5_full_dataset_kl_collision_{now}"
+        return f"grpo_run5_full_dataset_kl_l2_only_{now}"
         return f"sanity_check_{now}"
 
     @property

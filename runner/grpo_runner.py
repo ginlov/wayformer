@@ -14,7 +14,7 @@ from src.wayformer.utils import cal_grad_norm, cal_param_norm
 from src.grpo.reward import PathReward
 
 if TYPE_CHECKING:
-    from experiments.grpo_experiment import GRPOExperiment
+    from experiments.base_experiments.grpo_experiment import GRPOExperiment
 
 logger = get_cv_logger()
 
@@ -163,7 +163,7 @@ class GRPORunner(TrainRunner):
     def checkpoint(self):
         super().checkpoint()
         logger.info(f"Checkpoint saved at step {self.step}.")
-        checkpoint_path = os.path.join('checkpoints', self.checkpoint_folder, f'checkpoint_step_{self.step}.pt')
+        checkpoint_path = os.path.join(self.checkpoint_folder, f'checkpoint_step_{self.step}.pt')
         os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
         torch.save({
             'model_state_dict': self.model.state_dict(),
