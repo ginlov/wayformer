@@ -54,18 +54,6 @@ class GRPORunner(TrainRunner):
             collate_fn=collate_fn,
             sampler=WaymoSampler(original_dataset)
         )
-        self.sampler = GRPOSampler(
-            original_dataset,
-            15000
-        )
-        self.train_dataloader = DataLoader(
-            original_dataset,
-            batch_size=self.experiment.batch_size,
-            shuffle=False,
-            num_workers=10,
-            collate_fn=collate_fn,
-            sampler=self.sampler
-        )
         self.compute_reference_prob(original_dataloader)
 
         logger.info("Initilize path reward")
@@ -118,7 +106,7 @@ class GRPORunner(TrainRunner):
         super().train_epoch_start()
         # Each epoch, limit to 1000 samples, RL does not need full dataset
         if self.epoch % self.experiment.old_probs_recompute_freq == 0:
-            self.sampler.refresh()
+            self.train_dataloader.sampler.refresh()
             self.model.eval()
             with torch.no_grad():
                 self.old_probs = self.experiment.compute_ref_probs(

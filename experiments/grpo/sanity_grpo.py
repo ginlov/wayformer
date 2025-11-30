@@ -15,31 +15,34 @@ from src.data.dataset import WaymoDataset
 from src.wayformer.wayformer import build_wayformer
 
 from runner.wayformer_runner import WayformerRunner
-from experiments.grpo_experiment import GRPOExperiment
+from experiments.base_experiments.grpo_experiment import GRPOExperiment
 
 
 class SanityExperiment(GRPOExperiment):
+    @property
+    def num_train_samples(self) -> int:
+        return 64
+
     @property
     def old_probs_recompute_freq(self) -> int:
         return 1
 
     @property
     def sanity_check(self) -> bool:
-        return True 
+        return True
 
     @property
     def wandb_runname(self) -> str:
         now = datetime.now().strftime("%Y%m%d_%H%M%S")
-        return "grpo_run3"
         return f"sanity_check_{now}"
 
     @property
     def num_epochs(self) -> int:
-        return 40
+        return 1
 
     @property
     def val_freq(self) -> int:
-        return 2
+        return 1
 
     @property
     def batch_size(self) -> int:

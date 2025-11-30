@@ -33,6 +33,10 @@ class GRPOWithCollisionKL(GRPOExperiment):
         return 1
 
     @property
+    def sanity_check(self) -> bool:
+        return False
+
+    @property
     def wandb_runname(self) -> str:
         now = datetime.now().strftime("%Y%m%d_%H%M%S")
         return f"grpo_run5_full_dataset_kl_collision_{now}"

@@ -26,7 +26,7 @@ class SanityExperiment(WayformerExperiment):
     @property
     def wandb_runname(self) -> str:
         now = datetime.now().strftime("%Y%m%d_%H%M%S")
-        return "sanity_check"
+        return f"sanity_check_{now}"
 
     @property
     def num_epochs(self) -> int:
@@ -42,14 +42,4 @@ class SanityExperiment(WayformerExperiment):
 
     def build_dataset(self, partition):
         dataset = super().build_dataset(partition)
-        dataset.tracks = dataset.tracks[:64]
-        dataset.weights = dataset.weights[:64]
         return dataset
-
-    # def build_model(self) -> torch.nn.Module:
-    #     model = super().build_model()
-    #     for name, param in model.named_parameters():
-    #         if "encoder" not in name:
-    #             param.requires_grad = False
-    #
-    #     return model

@@ -1,4 +1,7 @@
 import torch
+from cvrunner.utils.logger import get_cv_logger
+
+logger = get_cv_logger()
 
 class GRPOLoss(torch.nn.Module):
     def __init__(self, epsilon: float = 0.2, beta: float = 0.01):

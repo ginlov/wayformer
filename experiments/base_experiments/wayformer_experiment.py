@@ -125,6 +125,10 @@ class WayformerExperiment(BaseExperiment, ABC):
             base_folder=self.base_data_folder if partition == "train" else self.base_val_data_folder,
             partition=partition
         )
+        if self.sanity_check:
+            dataset.tracks = dataset.tracks[:self.batch_size]
+            if partition == "train":
+                dataset.weights = dataset.weights[:self.batch_size]
         return dataset
 
     def build_dataloader(self, partition: str) -> DataLoader:

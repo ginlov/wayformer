@@ -28,6 +28,14 @@ class GRPOExperiment(BaseExperiment, ABC):
         pass
 
     @property
+    def num_train_samples(self) -> int | None:
+        return 15000
+
+    @property
+    def num_val_samples(self) -> int | None:
+        return None
+
+    @property
     def reward_class(self):
         return PathRewardWithCollision
 
@@ -150,12 +158,17 @@ class GRPOExperiment(BaseExperiment, ABC):
             partition=partition
         )
         dataset.weights = []
+        if self.sanity_check:
+            dataset.tracks = dataset.tracks[:self.batch_size * 2]
         return dataset
 
     def build_dataloader(self, partition: str) -> DataLoader:
         dataset = self.build_dataset(partition=partition)
 
-        sampler = WaymoSampler(dataset, shuffle=False)
+        sampler = GRPOSampler(
+            dataset,
+            subset_size=self.num_train_samples if partition == 'train' else self.num_val_samples
+        )
 
         dataloader = DataLoader(
             dataset,
@@ -242,7 +255,6 @@ class GRPOExperiment(BaseExperiment, ABC):
             data_batch['other_agents_future_pos'],
             data_batch['other_agents_future_mask'],
             data_batch['other_agents_future_width']
-
         ) # [A, num_modes]
 
         loss = loss_function(
@@ -336,15 +348,31 @@ class GRPOExperiment(BaseExperiment, ABC):
         for data_batch in tqdm(dataloader):
             data_batch = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in data_batch.items()}
 
+            # Pad surrounding environment features
+            agent_interaction_features, agent_interaction_mask = pad_in_case_empty_context(
+                data_batch['agent_interaction_features'],
+                data_batch['agent_interaction_mask'],
+            )
+
+            road_features, road_mask = pad_in_case_empty_context(
+                data_batch['road_features'],
+                data_batch['road_mask'],
+            )
+
+            traffic_light_features, traffic_light_mask = pad_in_case_empty_context(
+                data_batch['traffic_light_features'],
+                data_batch['traffic_light_mask'],
+            )
+
             output = model(
                 data_batch['agent_features'],
-                data_batch['agent_interaction_features'],
-                data_batch['road_features'],
-                data_batch['traffic_light_features'],
-                data_batch.get('agent_mask', None),
-                data_batch.get('agent_interaction_mask', None),
-                data_batch.get('road_mask', None),
-                data_batch.get('traffic_light_mask', None),
+                agent_interaction_features,
+                road_features,
+                traffic_light_features,
+                ~data_batch['agent_mask'],
+                ~agent_interaction_mask,
+                ~road_mask,
+                ~traffic_light_mask,
             ) # (Axnum_modesxft_tsx4, Axnum_modesx1)
 
             idx = data_batch['idx']
