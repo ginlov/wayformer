@@ -279,6 +279,14 @@ class WayformerExperiment(BaseExperiment, ABC):
             label_pos,
             label_mask
         )
+
+        if criterion is not None:
+            criterion_output = criterion(
+                data_batch,
+                output
+            )
+
+            metrics.update({"val/" + k: v for k, v in criterion_output.items()})
         return metrics
 
     def load_checkpoint(self) -> None:

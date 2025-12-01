@@ -12,6 +12,7 @@ from src.data.dataset import WaymoSampler, GRPOSampler
 from src.data.utils import collate_fn
 from src.wayformer.utils import cal_grad_norm, cal_param_norm
 from src.grpo.reward import PathReward
+from src.wayformer.metrics import WaymoMetrics
 
 if TYPE_CHECKING:
     from experiments.base_experiments.grpo_experiment import GRPOExperiment
@@ -24,6 +25,10 @@ class GRPORunner(TrainRunner):
         experiment: type["GRPOExperiment"]
     ):
         super().__init__(experiment=experiment)
+        logger.info("Build metric comptutation instance.")
+        self.criterion = WaymoMetrics()
+        logger.info("Done building metric computation instance.")
+
         self.load_checkpoint()
 
         # I want to freeze all layers except the gmm likelihood projection head
@@ -155,6 +160,7 @@ class GRPORunner(TrainRunner):
                 model=self.model,
                 data_batch=data_batch,
                 loss_function=self.loss_function,
+                criterion=self.criterion,
                 device=self.device
             )
 

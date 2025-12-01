@@ -323,7 +323,12 @@ class GRPOExperiment(BaseExperiment, ABC):
         rewards = {k: v * output[1] for k, v in rewards.items()}
 
         metrics = {'val/' + k: v.mean().item() for k, v in rewards.items()}
-
+        if criterion is not None:
+            criterion_output = criterion(
+                data_batch,
+                output
+            )
+            metrics.update({"val/"+k: v for k, v in criterion_output.items()})
         # metrics['images'] = visualize_scene(
         #     data_batch,
         #     output,
