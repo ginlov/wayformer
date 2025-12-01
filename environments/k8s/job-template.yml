@@ -1,0 +1,53 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: cvrunner-job-   # unique per run
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 600   # clean up after 10 minutes
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: cvrunner
+        image: __IMAGE__            # placeholder
+        workingDir: __WORKING_DIR__
+        args: ["-l", "--exp", "__EXP__"]
+        env:
+          - name: JOB_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+        resources:
+          requests:
+            nvidia.com/gpu: 1
+            cpu: "2"
+            memory: "16Gi"
+          limits:
+            nvidia.com/gpu: 1
+            cpu: "2"
+            memory: "18Gi"
+        volumeMounts:
+          - name: dshm
+            mountPath: /dev/shm
+          - name: data-pvc
+            mountPath: /data
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: nvidia.com/gpu.product
+                operator: In
+                values:
+                - NVIDIA-GeForce-RTX-4090
+                - NVIDIA-GeForce-RTX-3090
+      volumes:
+      - name: dshm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 16Gi   # <-- set shm size here
+      - name: data-pvc
+        persistentVolumeClaim:
+          claimName: waymo-motion-v1-2
+        

@@ -24,6 +24,10 @@ class WayformerExperiment(BaseExperiment, ABC):
         pass
 
     @property
+    def base_checkpoint_folder(self) -> str:
+        return "/data/checkpoints/wayformer/"
+
+    @property
     def val_freq(self) -> int:
         return 2
 
