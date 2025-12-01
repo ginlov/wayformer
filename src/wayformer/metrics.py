@@ -347,13 +347,29 @@ class WaymoMetrics(torch.nn.Module):
 
         for i in range(T):
             # format timestep to 2 ditits
-            metrics[f'min_distance_error_t{i+1:02d}'] = min_distance_error[:, i].mean().item()
-            metrics[f'miss_rate_t{i+1:02d}'] = miss_rate[:, i].mean().item()
+            # filter out minus one values in min_distance_error and miss_rate
+            valid_min_distance_error = min_distance_error[:, i][min_distance_error[:, i] >= 0]
+            valid_miss_rate = miss_rate[:, i][miss_rate[:, i] >= 0]
+            if valid_min_distance_error.numel() > 0:
+                metrics[f'min_distance_error_t{str(i+1).zfill(2)}'] = valid_min_distance_error.mean().item()
+
+            if valid_miss_rate.numel() > 0:
+                metrics[f'miss_rate_t{str(i+1).zfill(2)}'] = valid_miss_rate.mean().item()
             
-        metrics['min_average_distance_error'] = min_average_distance_error.mean().item()
-        metrics['overlap'] = overlap.mean().item()
-        metrics['min_fde'] = min_fde.mean().item()
-        metrics['brier_min_fde'] = brier_min_fde.mean().item()
+        # Filter out minus one values in min_average_distance_error
+        valid_min_average_distance_error = min_average_distance_error[min_average_distance_error >= 0]
+        valid_overlap = overlap[overlap >= 0]
+        valid_min_fde = min_fde[min_fde >= 0]
+        valid_brier_min_fde = brier_min_fde[brier_min_fde >= 0]
+
+        if valid_min_average_distance_error.numel() > 0:
+            metrics['min_average_distance_error'] = valid_min_average_distance_error.mean().item()
+        if valid_overlap.numel() > 0:
+            metrics['overlap'] = valid_overlap.mean().item()
+        if valid_min_fde.numel() > 0:
+            metrics['min_fde'] = valid_min_fde.mean().item()
+        if valid_brier_min_fde.numel() > 0:
+            metrics['brier_min_fde'] = valid_brier_min_fde.mean().item()
         return metrics
 
 def collision_per_timestep(

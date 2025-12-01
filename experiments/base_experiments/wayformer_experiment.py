@@ -144,7 +144,7 @@ class WayformerExperiment(BaseExperiment, ABC):
             dataset,
             batch_size=self.batch_size,
             sampler=sampler,
-            num_workers=4,
+            num_workers=10,
             collate_fn=collate_fn
         )
         return dataloader
