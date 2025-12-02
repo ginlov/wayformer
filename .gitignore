@@ -212,3 +212,6 @@ wandb/
 
 # Checkpoints
 checkpoints/
+
+# Assets
+assets/

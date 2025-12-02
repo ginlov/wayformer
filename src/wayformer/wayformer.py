@@ -73,6 +73,7 @@ class Wayformer(torch.nn.Module):
         agent_inter_masks: torch.Tensor | None = None, # [A, T, S_i]
         road_masks: torch.Tensor | None = None, # [A, 1, S_road]
         traffic_light_masks: torch.Tensor | None = None, # [A, T, S_traffic_light]
+        axillary_outputs: bool = False
     ):
         # Project inputs to model dimensions
         agent_hist = self.agent_projection(agent_hist)  # [A, T, 1, D_model]
@@ -112,6 +113,9 @@ class Wayformer(torch.nn.Module):
         A, modes, d = out.shape
         gmm_params = self.gmm_param_projection(out.reshape(A * modes, 1, d)) # [A, num_modes, future_timesteps * 4]
         gmm_params = gmm_params.view(A, modes, -1, 4) # [A, num_modes, future_timesteps, 4]
+        if axillary_outputs:
+            return (gmm_params, likelihoods, out)
+
         return (gmm_params, likelihoods)
 
 def build_wayformer(

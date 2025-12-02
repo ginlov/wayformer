@@ -28,6 +28,10 @@ class GRPOExperiment(BaseExperiment, ABC):
         pass
 
     @property
+    def base_checkpoint_folder(self) -> str:
+        return "/data/checkpoints/grpo_wayformer/"
+
+    @property
     def num_train_samples(self) -> int | None:
         return 15000
 

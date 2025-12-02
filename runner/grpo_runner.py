@@ -13,6 +13,7 @@ from src.data.utils import collate_fn
 from src.wayformer.utils import cal_grad_norm, cal_param_norm
 from src.grpo.reward import PathReward
 from src.wayformer.metrics import WaymoMetrics
+from src.grpo.metrics import GRPOMetrics
 
 if TYPE_CHECKING:
     from experiments.base_experiments.grpo_experiment import GRPOExperiment
@@ -26,7 +27,7 @@ class GRPORunner(TrainRunner):
     ):
         super().__init__(experiment=experiment)
         logger.info("Build metric comptutation instance.")
-        self.criterion = WaymoMetrics()
+        self.criterion = GRPOMetrics(WaymoMetrics())
         logger.info("Done building metric computation instance.")
 
         self.load_checkpoint()
@@ -68,8 +69,8 @@ class GRPORunner(TrainRunner):
         self.epoch = 0
 
         # Get checkpoint folder for consistency
-        self.checkpoint_folder = os.path.join('checkpoints', logger._wandb_runname) \
-                            if logger._wandb_runname else os.path.join('checkpoints', self.experiment.wandb_runname)
+        self.checkpoint_folder = os.path.join(self.experiment.base_checkpoint_folder, logger._wandb_runname) \
+            if logger._wandb_runname else os.path.join(self.experiment.base_checkpoint_folder, self.experiment.wandb_runname)
         logger.info(f"Checkpoint folder: {self.checkpoint_folder}")
 
     def compute_reference_prob(
