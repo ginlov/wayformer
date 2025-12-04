@@ -42,9 +42,37 @@ class GRPOMetrics(torch.nn.Module):
         top2_modes_dis = sorted_modes_dis[:, :2]  # [A, 2]
         top2_chosen = (sorted_modes_probs[:, 0].unsqueeze(1) == top2_modes_dis).any(dim=-1).float()  # [A]
         top2_mismatch_rate = (1.0 - top2_chosen).mean().item()
+
+        # Average best trajectory probability
+        prob_best_traj = torch.gather(
+            output[1], 1, sorted_modes_dis[:, 0:1]
+        ).squeeze(-1)  # [A]
+        avg_prob_best_traj = prob_best_traj.mean().item()
+
+        # Average top 2 trajectory probability
+        prob_top2_traj = torch.gather(
+            output[1], 1, sorted_modes_dis[:, :2]
+        )  # [A, 2]
+        avg_prob_top2_traj = prob_top2_traj.mean().item()
+
+        # Average rank of the best trajectory
+        rank_best_traj = (sorted_modes_probs == sorted_modes_dis[:, 0:1]).nonzero()[:, 1].float() + 1.0  # [A]
+        avg_rank_best_traj = rank_best_traj.mean().item()
+
+        # Average rank of the top 2 trajectories
+        ranks_top2_traj = []
+        for i in range(2):
+            rank_topi_traj = (sorted_modes_probs == sorted_modes_dis[:, i:i+1]).nonzero()[:, 1].float() + 1.0  # [A]
+            ranks_top2_traj.append(rank_topi_traj)
+        ranks_top2_traj = torch.stack(ranks_top2_traj, dim=-1)  # [A, 2]
+        avg_rank_top2_traj = ranks_top2_traj.mean().item()
         
         metrics.update({
             "mismatch_rate": mismatch_rate,
-            "top2_mismatch_rate": top2_mismatch_rate
+            "top2_mismatch_rate": top2_mismatch_rate,
+            "avg_prob_best_traj": avg_prob_best_traj,
+            "avg_prob_top2_traj": avg_prob_top2_traj,
+            "avg_rank_best_traj": avg_rank_best_traj,
+            "avg_rank_top2_traj": avg_rank_top2_traj
         })
         return metrics

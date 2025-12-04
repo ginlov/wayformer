@@ -4,11 +4,11 @@ from cvrunner.utils.logger import get_cv_logger
 logger = get_cv_logger()
 
 class GRPOLoss(torch.nn.Module):
-    def __init__(self, epsilon: float = 0.2, beta: float = 0.01):
+    def __init__(self, epsilon: float = 0.2, beta: float = 0.01, upclipped_upper: bool = False):
         super().__init__()
         self.epsilon = epsilon
         self.beta = beta
-        pass
+        self.upclipped_upper = upclipped_upper
 
     def compute_advantage(
         self,
@@ -28,11 +28,24 @@ class GRPOLoss(torch.nn.Module):
     ):
         advantages = self.compute_advantage(rewards)  # [A, num_modes]
 
+        # Skew probabilities to be more "extreme" but keep differentiability
+        # temperature = 0.01  # Lower = more peaked, adjust as needed
+        # old_probs = torch.softmax(torch.log(old_probs) / temperature, dim=1)
+        # curr_probs = torch.softmax(torch.log(curr_probs) / temperature, dim=1)
+        # ref_probs = torch.softmax(torch.log(ref_probs) / temperature, dim=1)
+
         # Compute ratio
         ratios = curr_probs/(old_probs + 1e-9)  # [A, num_modes]
         # Compute surrogate losses
         surr1 = ratios * advantages  # [A, num_modes]
-        surr2 = torch.clamp(ratios, 1.0 - self.epsilon, 1.0 + self.epsilon) * advantages  # [A, num_modes]
+        if not isinstance(self.epsilon, float):
+            epsilon = self.epsilon.epsilon
+        else:
+            epsilon = self.epsilon
+        if self.upclipped_upper:
+            surr2 = torch.clamp(ratios, 1.0 - epsilon, None) * advantages  # [A, num_modes]
+        else:
+            surr2 = torch.clamp(ratios, 1.0 - epsilon, 1.0 + epsilon) * advantages  # [A, num_modes]
         # PPO loss
         ppo_loss = -torch.min(surr1, surr2).mean()  # scalar
 

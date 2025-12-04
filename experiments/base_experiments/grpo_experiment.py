@@ -141,6 +141,10 @@ class GRPOExperiment(BaseExperiment, ABC):
     def num_modes(self) -> int:
         return 6
 
+    @property
+    def num_likelihoods_proj_layers(self) -> int:
+        return 1
+
     def build_model(self) -> torch.nn.Module:
         return build_wayformer(
             self.d_model,
@@ -153,6 +157,7 @@ class GRPOExperiment(BaseExperiment, ABC):
             self.attention_type,
             self.num_decoder_layers,
             self.num_modes,
+            self.num_likelihoods_proj_layers,
             self.dataset_config
         )
 

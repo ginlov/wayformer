@@ -129,6 +129,7 @@ def build_wayformer(
     attention_type,
     num_decoder_layers,
     num_modes,
+    num_likelihoods_proj_layers,
     datasetconfig: Type[DatasetConfig]
 ):
     encoder = SceneEncoder(d_model, nhead, dim_feedforward, num_layers, dropout, fusion, num_latents, attention_type)
@@ -155,7 +156,15 @@ def build_wayformer(
         dropout,
         future_timesteps=datasetconfig.future_timesteps
     )
-    gmm_likelihood_projection = torch.nn.Linear(d_model, 1)
+    if num_likelihoods_proj_layers == 1:
+        gmm_likelihood_projection = torch.nn.Linear(d_model, 1)
+    else:
+        gmm_likelihood_projection_layers = []
+        for _ in range(num_likelihoods_proj_layers-1):
+            gmm_likelihood_projection_layers.append(torch.nn.Linear(d_model, d_model))
+            gmm_likelihood_projection_layers.append(torch.nn.ReLU())
+        gmm_likelihood_projection_layers.append(torch.nn.Linear(d_model, 1))
+        gmm_likelihood_projection = torch.nn.Sequential(*gmm_likelihood_projection_layers)
 
     model = Wayformer(
         encoder,
