@@ -1,5 +1,5 @@
 import torch
-from src.wayformer.utils import init_weights
+from src.utils import init_weights
 from src.wayformer.factories import get_multihead_attention, build_positional_embedding
 
 class TemporalTrajDecoder(torch.nn.Module):
