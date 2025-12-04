@@ -1,7 +1,9 @@
 import torch
 
 from typing import Tuple
-from src.wayformer.metrics import check_collision_for_trajectory, collision_per_timestep
+from src.utils import cal_l2_dist
+from src.wayformer.metrics import collision_per_timestep
+from src.utils import cal_l2_dist
 
 class PathReward(torch.nn.Module):
     def __init__(self):
@@ -16,11 +18,11 @@ class PathReward(torch.nn.Module):
         *args,
         **kwargs
     ):
-        distances = torch.norm(
-            predictions[0][:, :, :, :2] - targets.unsqueeze(1), dim=-1
-        ) # [A, num_modes, ts]
-        distances = distances * target_mask.unsqueeze(1)  # Mask invalid timesteps
-        total_l2_errors = distances.sum(dim=-1)  # [A, num_modes]
+        total_l2_errors = cal_l2_dist(
+            predictions[0][...,:2], # [A, num_modes, ts]
+            targets, # [A, ts]
+            target_mask # [A, ts]
+        )
 
         # Boost up top 2 rewards
         sorted_l2_errors, sorted_indices = torch.sort(total_l2_errors, dim=-1) # [A, num_modes]
@@ -46,11 +48,7 @@ class PathRewardWithCollision(torch.nn.Module):
         other_fut_masks: torch.Tensor, # [A, ts, n]
         other_fut_widths: torch.Tensor, # [A, n]
     ):
-        distances = torch.norm(
-            predictions[0][:, :, :, :2] - targets.unsqueeze(1), dim=-1
-        ) # [A, num_modes, ts]
-        distances = distances * target_mask.unsqueeze(1)  # Mask invalid timesteps
-        total_l2_errors = distances.sum(dim=-1)  # [A, num_modes]
+        total_l2_errors = cal_l2_dist(predictions[0][...,:2], targets, target_mask) # [A, num_modes]
 
         # Boost up top 2 rewards
         sorted_l2_errors, sorted_indices = torch.sort(total_l2_errors, dim=-1) # [A, num_modes]

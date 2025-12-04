@@ -1,5 +1,5 @@
 from abc import ABC
-from typing import Type, Tuple, Dict, Any
+from typing import Type, Tuple, Dict, Any, Callable
 import torch
 
 from torch.utils.data import DataLoader
@@ -10,10 +10,12 @@ from cvrunner.runner import BaseRunner
 from cvrunner.utils.logger import get_cv_logger
 from cvrunner.experiment import BaseExperiment, DataBatch, MetricType
 from src.wayformer.config import DatasetConfig
+from src.wayformer.metrics import WaymoMetrics
 from src.wayformer.wayformer import build_wayformer
 from src.wayformer.loss import WayformerLoss
 from src.data.dataset import WaymoDataset, WaymoSampler
-from src.data.utils import collate_fn, visualize_scene, pad_in_case_empty_context
+from src.data.utils import collate_fn, pad_in_case_empty_context
+from src.data.visualize import visualize_scene
 
 from runner.wayformer_runner import WayformerRunner
 
@@ -179,6 +181,9 @@ class WayformerExperiment(BaseExperiment, ABC):
         )
 
         return optimizer, scheduler
+
+    def build_criterion(self) -> Callable:
+        return WaymoMetrics()
 
     def train_step(
         self,

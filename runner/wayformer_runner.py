@@ -1,4 +1,3 @@
-import itertools
 from typing import TYPE_CHECKING, Any
 import os
 
@@ -6,8 +5,7 @@ import torch
 from cvrunner.runner import TrainRunner
 from cvrunner.utils.logger import get_cv_logger
 
-from src.wayformer.utils import cal_grad_norm, cal_param_norm
-from src.wayformer.metrics import WaymoMetrics
+from src.utils import cal_grad_norm, cal_param_norm
 
 if TYPE_CHECKING:
     from experiments.base_experiments.wayformer_experiment import WayformerExperiment
@@ -24,9 +22,6 @@ class WayformerRunner(TrainRunner):
             model=self.model,
             len_dataloader = len(self.train_dataloader)
         )
-        logger.info("Build metric comptutation instance.")
-        self.criterion = WaymoMetrics()
-        logger.info("Done building metric computation instance.")
         logger.info(f"Training dataset has {len(self.train_dataloader.dataset)} samples.")
         logger.info(f"Validation dataset has {len(self.val_dataloader.dataset)} samples.")
         logger.info(f"Number of training steps per epoch: {len(self.train_dataloader)}.")

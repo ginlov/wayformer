@@ -1,5 +1,6 @@
 import torch
 from typing import Dict, Any
+from src.utils import cal_l2_dist
 
 class WaymoMetrics(torch.nn.Module):
     def __init__(
@@ -28,13 +29,8 @@ class WaymoMetrics(torch.nn.Module):
         Returns:
             torch.Tensor: Minimum distance error of shape (B, T)
         """
-        B, N, T, _ = pred_trajs.shape
-
-        # Expand ground truth trajectories to match predicted trajectories shape
-        gt_trajs_expanded = gt_trajs.unsqueeze(1).expand(-1, N, -1, -1)  # (B, N, T, 2)
-
         # Compute L2 distance between predicted and ground truth trajectories
-        dists = torch.norm(pred_trajs - gt_trajs_expanded, dim=-1)  # (B, N, T)
+        dists = cal_l2_dist(pred_trajs, gt_trajs, gt_masks, step_wise=True)  # (B, N, T)
 
         # Find the minimum distance error across all predicted trajectories
         min_dists, _ = torch.min(dists, dim=1)  # (B, T)
@@ -64,13 +60,8 @@ class WaymoMetrics(torch.nn.Module):
         Returns:
             torch.Tensor: Miss rate of shape (B, T)
         """
-        B, N, T, _ = pred_trajs.shape
-
-        # Expand ground truth trajectories to match predicted trajectories shape
-        gt_trajs_expanded = gt_trajs.unsqueeze(1).expand(-1, N, -1, -1)  # (B, N, T, 2)
-
         # Compute L2 distance between predicted and ground truth trajectories
-        dists = torch.norm(pred_trajs - gt_trajs_expanded, dim=-1)  # (B, N, T)
+        dists = cal_l2_dist(pred_trajs, gt_trajs, gt_masks, step_wise=True)  # (B, N, T)
 
         # Determine misses based on the threshold
         misses = (dists > self.miss_rate_threshold).all(dim=1).float()  # (B, T)
@@ -99,13 +90,8 @@ class WaymoMetrics(torch.nn.Module):
         Returns:
             torch.Tensor: Minimum average distance error of shape (B,)
         """
-        B, N, T, _ = pred_trajs.shape
-
-        # Expand ground truth trajectories to match predicted trajectories shape
-        gt_trajs_expanded = gt_trajs.unsqueeze(1).expand(-1, N, -1, -1)  # (B, N, T, 2)
-
         # Compute L2 distance between predicted and ground truth trajectories
-        dists = torch.norm(pred_trajs - gt_trajs_expanded, dim=-1)  # (B, N, T)
+        dists = cal_l2_dist(pred_trajs, gt_trajs, gt_masks, step_wise=True)  # (B, N, T)
 
         # Compute average distance error over the trajectory
         # Masking out invalid timesteps
@@ -445,83 +431,3 @@ def collision_per_timestep(
     # Check collisions: distance < effective threshold at any valid timestep
     collision_matrix = (distances < effective_threshold) & valid_both  # [B, n, m, T]
     return collision_matrix
-
-
-def check_collision_for_trajectory(
-    trajectories_of_interest: torch.Tensor,  # [B, k, m+1, 2]
-    masks_of_interest: torch.Tensor,         # [B, k, m+1]
-    widths_of_interest: torch.Tensor,        # [B, k] or [B, k, m+1] - width of vehicles for trajectories of interest
-    other_trajectories: torch.Tensor,        # [B, n, m+1, 2]
-    other_masks: torch.Tensor,               # [B, n, m+1]
-    other_widths: torch.Tensor,              # [B, n] or [B, n, m+1] - width of vehicles for other trajectories
-    collision_threshold: float = 0.0         # additional safety margin beyond vehicle widths
-):
-    """
-    Check collisions between k trajectories of interest and n other trajectories in batch.
-    
-    Args:
-        trajectories_of_interest: [B, k, m+1, 2] tensor of k trajectories to check per batch
-        masks_of_interest: [B, k, m+1] boolean tensor, True for valid points
-        widths_of_interest: [B, k] or [B, k, m+1] tensor of widths for trajectories of interest
-        other_trajectories: [B, n, m+1, 2] tensor of n other trajectories per batch
-        other_masks: [B, n, m+1] boolean tensor, True for valid points
-        other_widths: [B, n] or [B, n, m+1] tensor of widths for other vehicles
-        collision_threshold: additional safety margin in meters (default 0.0)
-    
-    Returns: collision_matrix: [B, k, n] boolean tensor where collision_matrix[b, i, j] = True 
-                         if trajectories_of_interest[b, i] collides with other_trajectories[b, j]
-    """
-    assert trajectories_of_interest.dim() == 4, "trajectories_of_interest must be [B, k, m+1, 2]"
-    assert masks_of_interest.dim() == 3, "masks_of_interest must be [B, k, m+1]"
-    assert other_trajectories.dim() == 4, "other_trajectories must be [B, n, m+1, 2]"
-    assert other_masks.dim() == 3, "other_masks must be [B, n, m+1]"
-    assert trajectories_of_interest.shape[0] == other_trajectories.shape[0], f"Batch sizes must match, got {trajectories_of_interest.shape[0]} and {other_trajectories.shape[0]}"
-    assert trajectories_of_interest.shape[2] == other_trajectories.shape[2], f"Trajectory lengths must match got {trajectories_of_interest.shape[2]} and {other_trajectories.shape[2]}"
-
-    masks_of_interest = masks_of_interest.bool()
-    B = trajectories_of_interest.shape[0]
-    k = trajectories_of_interest.shape[1]
-    n = other_trajectories.shape[1]
-    
-    # Expand dimensions for pairwise comparison
-    traj_interest = trajectories_of_interest.unsqueeze(2)  # [B, k, 1, m+1, 2]
-    other_traj = other_trajectories.unsqueeze(1)  # [B, 1, n, m+1, 2]
-    
-    # Compute pairwise distances
-    distances = torch.norm(traj_interest - other_traj, dim=-1)  # [B, k, n, m+1]
-    
-    # Expand masks for pairwise comparison
-    mask_interest = masks_of_interest.unsqueeze(2)  # [B, k, 1, m+1]
-    mask_other = other_masks.unsqueeze(1)  # [B, 1, n, m+1]
-    valid_both = mask_interest & mask_other  # [B, k, n, m+1]
-    
-    # Compute collision threshold based on vehicle widths
-    # Two vehicles collide if their center distance < (width1 + width2) / 2
-    # Handle widths_of_interest
-    if widths_of_interest.dim() == 2:
-        # widths_of_interest is [B, k], expand to [B, k, 1, 1]
-        widths_interest = widths_of_interest.unsqueeze(2).unsqueeze(3)  # [B, k, 1, 1]
-    else:
-        # widths_of_interest is [B, k, m+1], expand to [B, k, 1, m+1]
-        widths_interest = widths_of_interest.unsqueeze(2)  # [B, k, 1, m+1]
-    
-    # Handle other_widths
-    if other_widths.dim() == 2:
-        # other_widths is [B, n], expand to [B, 1, n, 1]
-        widths_other = other_widths.unsqueeze(1).unsqueeze(3)  # [B, 1, n, 1]
-    else:
-        # other_widths is [B, n, m+1], expand to [B, 1, n, m+1]
-        widths_other = other_widths.unsqueeze(1)  # [B, 1, n, m+1]
-    
-    # Compute combined width for all pairs
-    combined_width = (widths_interest + widths_other) / 2  # [B, k, n, 1] or [B, k, n, m+1]
-    
-    # Add safety margin
-    effective_threshold = combined_width + collision_threshold  # [B, k, n, 1] or [B, k, n, m+1]
-    
-    # Check collisions: distance < effective threshold at any valid timestep
-    collision_at_timestep = (distances < effective_threshold) & valid_both  # [B, k, n, m+1]
-    collision_matrix = collision_at_timestep.any(dim=3)  # [B, k, n]
-    
-    return collision_matrix
-

@@ -3,6 +3,8 @@ import math
 
 from typing import Tuple
 
+from src.utils import cal_l2_dist
+
 class WayformerLoss(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -25,11 +27,9 @@ class WayformerLoss(torch.nn.Module):
         target_mask_expanded = target_mask.unsqueeze(1).expand(-1, num_modes, -1) # [A, num_modes, ts]
         assert target_mask_expanded.shape == traj_preds.shape[:3], f"{target_mask_expanded.shape} vs {traj_preds.shape[:3]}"
         traj_preds = traj_preds * target_mask_expanded.unsqueeze(-1) # [A, num_modes, ts, 4]
-        targets_expanded = targets_expanded * target_mask_expanded.unsqueeze(-1) # [A, num_modes, ts, 2]
 
         # Find best mode for each agent
-        l2_errors = torch.norm(traj_preds[..., :2] - targets_expanded, dim=-1) # [A, num_modes, ts]
-        total_l2_errors = l2_errors.sum(dim=-1) # [A, num_modes]
+        total_l2_errors = cal_l2_dist(traj_preds[...,:2], targets, target_mask) # [A, num_modes]
         best_mode_indices = torch.argmin(total_l2_errors, dim=-1) # [A]
 
         # Compute log likelihood loss

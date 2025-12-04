@@ -1,19 +1,15 @@
 import itertools
 from typing import TYPE_CHECKING, Any
 import os
-import random
 
 import torch
 from torch.utils.data import DataLoader
 from cvrunner.runner import TrainRunner
 from cvrunner.utils.logger import get_cv_logger
 
-from src.data.dataset import WaymoSampler, GRPOSampler
+from src.data.dataset import WaymoSampler
 from src.data.utils import collate_fn
-from src.wayformer.utils import cal_grad_norm, cal_param_norm
-from src.grpo.reward import PathReward
-from src.wayformer.metrics import WaymoMetrics
-from src.grpo.metrics import GRPOMetrics
+from src.utils import cal_grad_norm, cal_param_norm
 
 if TYPE_CHECKING:
     from experiments.base_experiments.grpo_experiment import GRPOExperiment
@@ -26,9 +22,6 @@ class GRPORunner(TrainRunner):
         experiment: type["GRPOExperiment"]
     ):
         super().__init__(experiment=experiment)
-        logger.info("Build metric comptutation instance.")
-        self.criterion = GRPOMetrics(WaymoMetrics())
-        logger.info("Done building metric computation instance.")
 
         self.load_checkpoint()
 
