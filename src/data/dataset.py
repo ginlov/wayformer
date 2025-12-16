@@ -3,12 +3,16 @@ import pickle
 import random
 import pandas as pd
 import numpy as np
+import torch
 
 from typing import Literal, Tuple
 from torch.utils.data import Sampler, Dataset
+from torch.utils.data.distributed import DistributedSampler
 
 from src.data.utils import data_sample
 from tqdm import tqdm
+
+import cvrunner.utils.distributed as dist_utils
 
 class WaymoDataset(Dataset):
     def __init__(
@@ -120,3 +124,30 @@ class GRPOSampler(Sampler):
 
     def __iter__(self):
         return iter(self.tracks)
+
+class DistributedWaymoSampler(DistributedSampler):
+    def __init__(self, dataset: WaymoDataset, shuffle: bool = True):
+        super().__init__(dataset, shuffle=shuffle)
+        self.dataset = dataset
+        self.shuffle = shuffle
+
+    def __iter__(self):
+        # deterministically shuffle based on epoch
+        if self.shuffle:
+            g = torch.Generator()
+            g.manual_seed(self.epoch)
+            indices = torch.randperm(len(self.dataset), generator=g).tolist()
+        else:
+            indices = list(range(len(self.dataset)))
+
+        # subsample
+        rank = dist_utils.get_rank()
+        world_size = dist_utils.get_world_size()
+        indices = indices[rank:self.total_size:world_size]
+        assert len(indices) == self.num_samples
+
+        # yield tracks
+        tracks = [self.dataset.tracks[i] for i in indices]
+        return iter(tracks)
+#             self.lr_scheduler.step()
+

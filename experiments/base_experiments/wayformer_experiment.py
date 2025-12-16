@@ -1,10 +1,11 @@
 from abc import ABC
-from typing import Type, Tuple, Dict, Any, Callable
+from typing import Type, Tuple, Dict, Any, Callable, Literal
 import torch
 
 from torch.utils.data import DataLoader
 from torch.optim import AdamW, Optimizer
 from torch.optim.lr_scheduler import _LRScheduler
+from torch.nn.parallel import DistributedDataParallel as DDP
 
 from cvrunner.runner import BaseRunner
 from cvrunner.utils.logger import get_cv_logger
@@ -13,11 +14,13 @@ from src.wayformer.config import DatasetConfig
 from src.wayformer.metrics import WaymoMetrics
 from src.wayformer.wayformer import build_wayformer
 from src.wayformer.loss import WayformerLoss
-from src.data.dataset import WaymoDataset, WaymoSampler
+from src.data.dataset import WaymoDataset, WaymoSampler, DistributedWaymoSampler
 from src.data.utils import collate_fn, pad_in_case_empty_context
 from src.data.visualize import visualize_scene
 
 from runner.wayformer_runner import WayformerRunner
+
+import cvrunner.utils.distributed as dist_utils
 
 logger = get_cv_logger()
 
@@ -116,7 +119,7 @@ class WayformerExperiment(BaseExperiment, ABC):
         return 1
 
     def build_model(self) -> torch.nn.Module:
-        return build_wayformer(
+        model = build_wayformer(
             self.d_model,
             self.nhead,
             self.dim_feedforward,
@@ -130,22 +133,27 @@ class WayformerExperiment(BaseExperiment, ABC):
             self.num_likelihoods_proj_layers,
             self.dataset_config
         )
+        return model
 
-    def build_dataset(self, partition: str) -> WaymoDataset:
+    def build_dataset(self, partition: Literal['train', 'test', 'val']) -> WaymoDataset:
         dataset = WaymoDataset(
-            base_folder=self.base_data_folder if partition == "train" else self.base_val_data_folder,
+            base_folder=self.base_data_folder if partition == "train"\
+                    else self.base_val_data_folder,
             partition=partition
         )
         if self.sanity_check:
-            dataset.tracks = dataset.tracks[:self.batch_size]
+            dataset.tracks = dataset.tracks[:self.batch_size*4]
             if partition == "train":
-                dataset.weights = dataset.weights[:self.batch_size]
+                dataset.weights = dataset.weights[:self.batch_size*4]
         return dataset
 
-    def build_dataloader(self, partition: str) -> DataLoader:
+    def build_dataloader(self, partition: Literal['train', 'test', 'val']) -> DataLoader:
         dataset = self.build_dataset(partition=partition)
 
-        sampler = WaymoSampler(dataset, shuffle=(partition == "train"))
+        if partition == 'train':
+            sampler = DistributedWaymoSampler(dataset, shuffle= partition == "train")
+        else:
+            sampler = WaymoSampler(dataset, shuffle= partition == "train")
 
         dataloader = DataLoader(
             dataset,
@@ -163,7 +171,7 @@ class WayformerExperiment(BaseExperiment, ABC):
         self,
         model: torch.nn.Module,
         len_dataloader: int = 0
-    ) -> Tuple[Optimizer, _LRScheduler]:
+    ) -> Tuple[Optimizer, Any]:
         optimizer = AdamW(
             model.parameters(),
             lr=5e-4,

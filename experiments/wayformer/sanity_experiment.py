@@ -26,7 +26,7 @@ class SanityExperiment(WayformerExperiment):
 
     @property
     def batch_size(self) -> int:
-        return 64
+        return 16
 
     def build_dataset(self, partition):
         dataset = super().build_dataset(partition)

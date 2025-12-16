@@ -2,8 +2,9 @@ from typing import TYPE_CHECKING, Any
 import os
 
 import torch
-from cvrunner.runner import TrainRunner
+from cvrunner.runner import DistributedTrainRunner
 from cvrunner.utils.logger import get_cv_logger
+import cvrunner.utils.distributed as dist_utils
 
 from src.utils import cal_grad_norm, cal_param_norm
 
@@ -12,48 +13,29 @@ if TYPE_CHECKING:
 
 logger = get_cv_logger()
 
-class WayformerRunner(TrainRunner):
+class WayformerRunner(DistributedTrainRunner):
     def __init__(
         self,
         experiment: type["WayformerExperiment"]
     ):
         super().__init__(experiment=experiment)
-        self.optimizer, self.lr_scheduler = self.experiment.build_optimizer_scheduler(
-            model=self.model,
-            len_dataloader = len(self.train_dataloader)
-        )
-        logger.info(f"Training dataset has {len(self.train_dataloader.dataset)} samples.")
-        logger.info(f"Validation dataset has {len(self.val_dataloader.dataset)} samples.")
-        logger.info(f"Number of training steps per epoch: {len(self.train_dataloader)}.")
-        logger.info(f"Number of validation steps per epoch: {len(self.val_dataloader)}.")
+
+        ## Log dataset and model information
+        logger.info("Training dataset has %d samples.", len(self.train_dataloader.dataset))
+        logger.info("Validation dataset has %d samples.", len(self.val_dataloader.dataset))
+        logger.info("Number of training steps per epoch: %d.", len(self.train_dataloader))
+        logger.info("Number of validation steps per epoch: %d.", len(self.val_dataloader))
+
         # Compute number of trainable parameters
         num_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
-        logger.info(f"Number of trainable parameters: {num_params}.")
+        logger.info("Number of trainable parameters: %d.", num_params)
         logger.info("WayformerRunner initialized.")
-        # Get checkpoint folder for consistency
-        self.checkpoint_folder = os.path.join(self.experiment.base_checkpoint_folder, logger._wandb_runname) \
+
+        if dist_utils.is_main_process():
+            # Get checkpoint folder for consistency
+            self.checkpoint_folder = os.path.join(self.experiment.base_checkpoint_folder, logger._wandb_runname) \
                             if logger._wandb_runname else os.path.join(self.experiment.base_checkpoint_folder, self.experiment.wandb_runname)
-        logger.info(f"Checkpoint folder: {self.checkpoint_folder}")
-
-    def run(self):
-        logger.info(f"Starting training for {self.experiment.num_epochs} epochs.")
-        num_epochs = self.experiment.num_epochs
-        val_freq = self.experiment.val_freq
-        for epoch in range(num_epochs):
-            logger.info(f"Starting epoch {epoch + 1}/{num_epochs}.")
-            self.train_epoch_start()
-            self.train_epoch()
-            self.train_epoch_end()
-            logger.info(f"Epoch {epoch + 1}/{num_epochs} completed.")
-
-            if (epoch + 1) % val_freq == 0:
-                logger.info(f"Starting validation at epoch {epoch + 1}.")
-
-                self.val_epoch_start()
-                self.val_epoch()
-                self.val_epoch_end()
-                self.checkpoint()
-                logger.info(f"Validation at epoch {epoch + 1} completed.")
+            logger.info("Checkpoint folder: %s", self.checkpoint_folder)
 
     def train_epoch(self):
         num_step = len(self.train_dataloader)
@@ -68,12 +50,12 @@ class WayformerRunner(TrainRunner):
         super().train_step(data_batch)
         with torch.no_grad():
             param_norm = cal_param_norm(self.model)
-            logger.log_metrics(param_norm, local_step=self.step)
+            logger.log_metrics(param_norm, step=self.step, stdout=False)
 
             grad_norm = cal_grad_norm(self.model)
-            logger.log_metrics(grad_norm, local_step=self.step)
+            logger.log_metrics(grad_norm, step=self.step, stdout=False)
 
-            logger.log_metrics({'lr': self.optimizer.param_groups[0]['lr']}, local_step=self.step)
+            logger.log_metrics({'lr': self.optimizer.param_groups[0]['lr']}, step=self.step)
 
     def val_step(
         self,
@@ -97,7 +79,7 @@ class WayformerRunner(TrainRunner):
 
     def checkpoint(self):
         super().checkpoint()
-        logger.info(f"Checkpoint saved at step {self.step}.")
+        logger.info(f"Checkpoint saved at local step {dist_utils.get_global_step(self.step)}.")
         checkpoint_path = os.path.join(self.checkpoint_folder, f'checkpoint_step_{self.step}.pt')
         os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
         torch.save({
