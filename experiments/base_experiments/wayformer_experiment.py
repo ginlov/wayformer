@@ -178,16 +178,16 @@ class WayformerExperiment(BaseExperiment, ABC):
             weight_decay=self.weight_decay
         )
 
-        # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        #     optimizer,
-        #     T_max=self.num_epochs * len_dataloader
-        # )
-        scheduler = torch.optim.lr_scheduler.ConstantLR(
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer,
-            factor=1.0,
-            total_iters=self.num_epochs * len_dataloader
+            T_max=self.num_epochs * len_dataloader
         )
-
+        # scheduler = torch.optim.lr_scheduler.ConstantLR(
+        #     optimizer,
+        #     factor=1.0,
+        #     total_iters=self.num_epochs * len_dataloader
+        # )
+        #
         return optimizer, scheduler
 
     def build_criterion(self) -> Callable:

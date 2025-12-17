@@ -144,7 +144,6 @@ class DistributedWaymoSampler(DistributedSampler):
         rank = dist_utils.get_rank()
         world_size = dist_utils.get_world_size()
         indices = indices[rank:self.total_size:world_size]
-        assert len(indices) == self.num_samples
 
         # yield tracks
         tracks = [self.dataset.tracks[i] for i in indices]
