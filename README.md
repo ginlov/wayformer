@@ -36,7 +36,7 @@ pip install cvrunner  # Install cvrunner from https://github.com/ginlov/cvrunner
 To run an experiment using cvrunner:
 
 ```bash
-cvrunner experiments/wayformer/full_training_100_epochs.py
+cvrunner -e experiments/wayformer/full_training_100_epochs.py -l
 ```
 
 To run tests:
