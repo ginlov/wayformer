@@ -1,6 +1,6 @@
 # Wayformer
 
-Wayformer is a modular reinforcement learning framework for trajectory prediction and policy optimization using transformer-based architectures. It supports multiple experiment types (PPO, GRPO), and provides tools for training, evaluation, and visualization.
+Implemenation of [Wayformer](https://waymo.com/research/wayformer/) alongside with GRPO and PPO reinforcement learning algorithms.
 
 ## Features
 
