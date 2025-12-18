@@ -23,12 +23,19 @@ Implemenation of [Wayformer](https://waymo.com/research/wayformer/) alongside wi
 
 ## Installation
 
+### Install cvrunner
+
+```bash
+# (Optional) Create and activate a virtual environment
+git clone https://github.com/ginlov/cvrunner.git
+cd cvrunner
+pip install -e .
+```
+
 ```bash
 git clone https://github.com/yourusername/wayformer.git
 cd wayformer
-# (Optional) Create and activate a virtual environment
 pip install -r requirements.txt
-pip install cvrunner  # Install cvrunner from https://github.com/ginlov/cvrunner
 ```
 
 ## Usage
