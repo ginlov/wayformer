@@ -23,6 +23,8 @@ Implemenation of [Wayformer](https://waymo.com/research/wayformer/) alongside wi
 
 ## Installation
 
+This reposity was set up to train with [cvrunner](https://github.com/ginlov/cvrunner.git).
+
 ### Install cvrunner
 
 ```bash
