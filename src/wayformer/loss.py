@@ -21,7 +21,6 @@ class WayformerLoss(torch.nn.Module):
         # Find nearest mode to target of each agent
         traj_preds, mode_probs = predictions
         A, num_modes, ts, _ = traj_preds.shape
-        targets_expanded = targets.unsqueeze(1).expand(-1, num_modes, -1, -1) # [A, num_modes, ts, 2]
 
         # Compute L2 errors for each mode, apply target mask
         target_mask_expanded = target_mask.unsqueeze(1).expand(-1, num_modes, -1) # [A, num_modes, ts]

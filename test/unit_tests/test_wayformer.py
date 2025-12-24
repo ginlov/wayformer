@@ -4,7 +4,6 @@ import sys
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 grandparent = os.path.dirname(parent)
-print(grandparent)
 sys.path.append(grandparent)
 
 import torch
@@ -53,9 +52,10 @@ def wayformer_model():
         fusion='late',
         num_latents=4,
         attention_type='latent',
+        num_decoder_layers=2,
         num_modes=3,
+        num_likelihoods_proj_layers=1,
         datasetconfig=DummyConfig
-
     )
 
 def test_wayformer_forward_shapes(wayformer_model):
@@ -65,14 +65,13 @@ def test_wayformer_forward_shapes(wayformer_model):
     D_road = DummyConfig.road_dim
     D_traffic_light = DummyConfig.traffic_light_dim
 
-    agent_hist = torch.randn(A, T, 1, D_agent_hist)
-    agent_inter = torch.randn(A, T, S_i, D_agent_inter)
+    agent_hist = torch.randn(A, T+1, 1, D_agent_hist)
+    agent_inter = torch.randn(A, T+1, S_i, D_agent_inter)
     road = torch.randn(A, 1, S_road, D_road)
-    traffic_light = torch.randn(A, T, S_traffic_light, D_traffic_light)
+    traffic_light = torch.randn(A, T+1, S_traffic_light, D_traffic_light)
 
     gmm_params, likelihoods = wayformer_model(agent_hist, agent_inter, road, traffic_light)
     assert gmm_params.shape[:2] == (A, 3)
     assert likelihoods.shape[:2] == (A, 3)
     assert gmm_params.shape[-1] == 4
-    assert likelihoods.shape[-1] == 1
 

@@ -4,7 +4,6 @@ import sys
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 grandparent = os.path.dirname(parent)
-print(grandparent)
 sys.path.append(grandparent)
 
 import torch
@@ -40,16 +39,25 @@ def test_wayformer_training_step(device):
     num_modes = 2
 
     model = build_wayformer(
-        d_model=16, nhead=2, dim_feedforward=32, num_layers=1, dropout=0.1,
-        fusion="late", num_latents=2, attention_type="latent", num_modes=num_modes,
+        d_model=16,
+        nhead=2,
+        dim_feedforward=32,
+        num_layers=1,
+        dropout=0.1,
+        fusion="late",
+        num_latents=2,
+        attention_type="latent",
+        num_decoder_layers=1,
+        num_modes=num_modes,
+        num_likelihoods_proj_layers=1,
         datasetconfig=DummyConfig
     ).to(device)
 
     # Dummy data
-    agent_hist = torch.randn(A, T, 1, D_agent_hist, device=device)
-    agent_inter = torch.randn(A, T, S_i, D_agent_inter, device=device)
+    agent_hist = torch.randn(A, T+1, 1, D_agent_hist, device=device)
+    agent_inter = torch.randn(A, T+1, S_i, D_agent_inter, device=device)
     road = torch.randn(A, 1, S_road, D_road, device=device)
-    traffic_light = torch.randn(A, T, S_tl, D_tl, device=device)
+    traffic_light = torch.randn(A, T+1, S_tl, D_tl, device=device)
     target = torch.randn(A, num_modes, DummyConfig.future_timesteps, 4, device=device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)

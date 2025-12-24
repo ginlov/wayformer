@@ -5,7 +5,6 @@ import pytest
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 grandparent = os.path.dirname(parent)
-print(grandparent)
 sys.path.append(grandparent)
 
 import torch

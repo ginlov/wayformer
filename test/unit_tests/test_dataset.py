@@ -4,7 +4,6 @@ import sys
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
 grandparent = os.path.dirname(parent)
-print(grandparent)
 sys.path.append(grandparent)
 
 from src.data.dataset import WaymoDataset
@@ -42,4 +41,10 @@ def test_waymo_dataset():
         'traffic_light_mask',
         'label_pos',
         'label_heading',
+        'label_mask',
+        'idx',
+        'agent_future_width',
+        'other_agents_future_pos',
+        'other_agents_future_width',
+        'other_agents_future_mask'
     ]
