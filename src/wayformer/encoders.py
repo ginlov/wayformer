@@ -239,7 +239,153 @@ class EarlyFusionSceneEncoder(torch.nn.Module):
         ) # A x sequence_length x D
 
 class HierarchicalFusionSceneEncoder(torch.nn.Module):
-    pass
+    """
+    Hierarchical Fusion Scene Encoder module.
+    """
+    def __init__(
+        self,
+        d_model: int,
+        nhead: int,
+        dim_feedforward: int,
+        num_layers: int,
+        dropout: float = 0.1,
+        num_latents: int = 16,
+        attention_type: Literal["multi_axis", "latent", "factorized"] = "multi_axis"
+    ):
+        """
+        Initializes the HierarchicalFusionSceneEncoder.
+        Args:
+            d_model (int): The number of expected features in the input.
+            nhead (int): The number of heads in the multiheadattention models.
+            dim_feedforward (int): The dimension of the feedforward network model.
+            num_layers (int): The number of encoder layers.
+            dropout (float): The dropout value.
+            fusion (Literal): The fusion method to use ("late", "early", "hierarchical").
+            attention_type (Literal): The type of attention mechanism to use.
+        """
+        super().__init__()
+        self.agent_hist_encoder = build_encoder(
+            d_model,
+            nhead,
+            dim_feedforward,
+            num_layers,
+            dropout,
+            num_latents,
+            attention_type
+        )
+        self.road_encoder = build_encoder(
+            d_model,
+            nhead,
+            dim_feedforward,
+            num_layers,
+            dropout,
+            num_latents,
+            attention_type
+        )
+        self.agent_int_encoder = build_encoder(
+            d_model,
+            nhead,
+            dim_feedforward,
+            num_layers,
+            dropout,
+            num_latents,
+            attention_type
+        )
+        self.traffic_light_encoder = build_encoder(
+            d_model,
+            nhead,
+            dim_feedforward,
+            num_layers,
+            dropout,
+            num_latents,
+            attention_type
+        )
+        # Fusion encoder
+        self.fusion_encoder = build_encoder(
+            d_model,
+            nhead,
+            dim_feedforward,
+            num_layers,
+            dropout,
+            num_latents,
+            attention_type
+        ) 
+
+    def forward(
+        self,
+        agent_histories: torch.Tensor, # A x T_hist x 1 x D
+        agent_interactions: torch.Tensor, # A x T_hist x S_i x D
+        road_graphs: torch.Tensor, # A x 1 x S_r x D
+        traffic_lights: torch.Tensor, # A x T_hist x S_tls x D
+        agent_positional_encodings: torch.Tensor | None =None, # A x T_hist x 1 x D
+        agent_interaction_positional_encodings: torch.Tensor | None =None, # A x 
+                                                                            # T_hist x S_i x D
+        road_positional_encodings: torch.Tensor | None =None, # A x 1 x S_r x D
+        traffic_light_positional_encodings: torch.Tensor | None =None, # A x T_hist x S_tls x D
+        agent_mask: torch.Tensor | None = None, # A x T_hist x 1
+        agent_interaction_mask: torch.Tensor | None = None, # A x T_hist x S_i
+        road_mask: torch.Tensor | None = None, # A x 1 x S_r
+        traffic_light_mask: torch.Tensor | None = None # A x T_hist x S_tls
+    ) -> torch.Tensor: # B x A x sequence_length x D
+        """
+        Forward pass for the HierarchicalFusionSceneEncoder.
+        Args:
+            agent_histories (torch.Tensor): Tensor of agent historical trajectories.
+            agent_interactions (torch.Tensor): Tensor of agent interaction features.
+            road_graphs (torch.Tensor): Tensor of road graph features.
+            traffic_lights (torch.Tensor): Tensor of traffic light features.
+        Returns:
+            torch.Tensor: The encoded scene features.
+        """
+        # Individual encodings
+        agent_encoding = self.agent_hist_encoder(
+            agent_histories.view(agent_histories.size(0), -1, agent_histories.size(-1)),
+            None if agent_positional_encodings is None else agent_positional_encodings.view(
+                agent_positional_encodings.size(0), -1, agent_positional_encodings.size(-1)
+            ),
+            None if agent_mask is None else agent_mask.view(agent_mask.size(0), -1)
+        ) # A x T_hist x D
+        road_encoding = self.road_encoder(
+            road_graphs.view(road_graphs.size(0), -1, road_graphs.size(-1)),
+            None if road_positional_encodings is None else road_positional_encodings.view(
+                road_positional_encodings.size(0), -1, road_positional_encodings.size(-1)
+            ),
+            None if road_mask is None else road_mask.view(road_mask.size(0), -1)
+        ) # A x S_r x D
+        agent_int_encoding = self.agent_int_encoder(
+            agent_interactions.view(agent_interactions.size(0), -1, agent_interactions.size(-1)),
+            None if agent_interaction_positional_encodings is None else \
+                agent_interaction_positional_encodings.view(
+                    agent_interaction_positional_encodings.size(0), -1,
+                    agent_interaction_positional_encodings.size(-1)
+                ),
+            None if agent_interaction_mask is None else agent_interaction_mask.view(
+                agent_interaction_mask.size(0), -1
+            )
+        ) # A x (S_i * T_hist) x D
+
+        traffic_light_encoding = self.traffic_light_encoder(
+            traffic_lights.view(traffic_lights.size(0), -1, traffic_lights.size(-1)),
+            None if traffic_light_positional_encodings is None else \
+                traffic_light_positional_encodings.view(
+                    traffic_light_positional_encodings.size(0), -1,
+                    traffic_light_positional_encodings.size(-1)
+                ),
+            None if traffic_light_mask is None else traffic_light_mask.view(
+                traffic_light_mask.size(0), -1
+            )
+        ) # A x (S_tls * T_hist) x D
+
+        # Concatenate all encodings
+        fused_encoding = torch.cat(
+            [agent_encoding, road_encoding, agent_int_encoding, traffic_light_encoding], dim=1
+        ) # A x sequence_length x D
+        # Fusion encoding
+        fused_output = self.fusion_encoder(fused_encoding, None, None) # A x sequence_length x D
+        return fused_output
+                
+            
+            
 
 class SceneEncoder(torch.nn.Module):
     """
