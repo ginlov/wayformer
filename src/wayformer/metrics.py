@@ -390,9 +390,6 @@ def collision_per_timestep(
     assert trajectories_of_interest.shape[2] == other_trajectores.shape[2], f"Trajectory lengths must match got {trajectories_of_interest.shape[2]} and {other_trajectores.shape[2]}"
 
     masks_of_interest = masks_of_interest.bool()
-    B = trajectories_of_interest.shape[0]
-    n = trajectories_of_interest.shape[1]
-    m = other_trajectores.shape[1]
     
     # Expand dimensions for pairwise comparison
     traj_interest = trajectories_of_interest.unsqueeze(2)  # [B, n, 1, T, 2]

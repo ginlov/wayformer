@@ -31,7 +31,6 @@ class TemporalTrajDecoder(torch.nn.Module):
         Args:
             memory (torch.Tensor): The encoded features from the encoder.
             positional_encoding (torch.Tensor | None): Positional encoding tensor.
-
         Returns:
             torch.Tensor: The decoded trajectory features.
         """        
@@ -155,7 +154,7 @@ class TrajectoryDecoder(torch.nn.Module):
 
         Returns:
             torch.Tensor: The decoded trajectory modes.
-        """        
+        """
         batch_size = memory.size(0)
         # Expand mode queries to batch size
         query = self.mode_query.unsqueeze(0).expand(batch_size, -1, -1)  # B x num_modes x D
@@ -163,4 +162,3 @@ class TrajectoryDecoder(torch.nn.Module):
         for layer in self.layers:
             output = layer(output, memory, memory, positional_encoding)
         return output
-
