@@ -130,7 +130,113 @@ class LateFusionSceneEncoder(torch.nn.Module):
         ) # A x () x D
 
 class EarlyFusionSceneEncoder(torch.nn.Module):
-    pass
+    def __init__(
+        self,
+        d_model: int,
+        nhead: int,
+        dim_feedforward: int,
+        num_layers: int,
+        dropout: float = 0.1,
+        num_latents: int = 16,
+        attention_type: Literal["multi_axis", "latent", "factorized"] = "multi_axis"
+    ):
+        super().__init__()
+        self.encoder = build_encoder(
+            d_model,  # Concatenated input size
+            nhead,
+            dim_feedforward,
+            num_layers,
+            dropout,
+            num_latents,
+            attention_type
+        )
+
+    def forward(
+        self,
+        agent_histories: torch.Tensor, # A x T_hist x 1 x D
+        agent_interactions: torch.Tensor, # A x T_hist x S_i x D
+        road_graphs: torch.Tensor, # A x 1 x S_r x D
+        traffic_lights: torch.Tensor, # A x T_hist x S_tls x D
+        agent_positional_encodings: torch.Tensor | None =None, # A x T_hist x 1 x D
+        agent_interaction_positional_encodings: torch.Tensor | None =None, # A x 
+                                                                            # T_hist x S_i x D
+        road_positional_encodings: torch.Tensor | None =None, # A x 1 x S_r x D
+        traffic_light_positional_encodings: torch.Tensor | None =None, # A x T_hist x S_tls x D
+        agent_mask: torch.Tensor | None = None, # A x T_hist x 1
+        agent_interaction_mask: torch.Tensor | None = None, # A x T_hist x S_i
+        road_mask: torch.Tensor | None = None, # A x 1 x S_r
+        traffic_light_mask: torch.Tensor | None = None # A x T_hist x S_tls
+    ) -> torch.Tensor: # B x A x sequence_length x D
+        # Concatenate all inputs along the feature dimension
+        A, T_hist, _, D = agent_histories.shape
+        S_r = road_graphs.shape[2]
+        S_i = agent_interactions.shape[2]
+        S_tls = traffic_lights.shape[2]
+
+        agent_histories = agent_histories.view(A, -1, D)
+        agent_interactions = agent_interactions.view(A, -1, D)
+        road_graphs = road_graphs.view(A, -1, D)
+        traffic_lights = traffic_lights.view(A, -1, D)
+
+        agent_positional_encodings = None if agent_positional_encodings is None\
+                                            else agent_positional_encodings.view(A, -1, D)
+        agent_interaction_positional_encodings = None if agent_interaction_positional_encodings is None \
+                                                        else agent_interaction_positional_encodings.view(A, -1, D)
+        road_positional_encodings = None if road_positional_encodings is None\
+                                            else road_positional_encodings.view(A, -1, D)
+        traffic_light_positional_encodings = None if traffic_light_positional_encodings is None \
+                                                    else traffic_light_positional_encodings.view(A, -1, D)
+
+        # For simplicity, we will just concatenate along the feature dimension
+        fused_input = torch.cat(
+            [
+                agent_histories, # A x T_hist x D
+                agent_interactions, # A x T_hist*S_i x D
+                road_graphs, # A x S_r x D
+                traffic_lights # A x T_hist * S_tls x D
+            ],
+            dim=1
+        ) # A x (T_hist+T_hist*S_i+S_r+T_hist*S_tls) x D
+
+        # Create fused positional encodings if provided
+        if agent_positional_encodings is not None and \
+           agent_interaction_positional_encodings is not None and \
+           road_positional_encodings is not None and \
+           traffic_light_positional_encodings is not None:
+            fused_positional_encodings = torch.cat(
+                [
+                    agent_positional_encodings,
+                    agent_interaction_positional_encodings,
+                    road_positional_encodings,
+                    traffic_light_positional_encodings
+                ],
+                dim=1
+            ) # A x (T_hist+T_hist*S_i+S_r+T_hist*S_tls) x D
+        else:
+            fused_positional_encodings = None
+
+        # Create fused mask if provided
+        if agent_mask is not None and \
+           agent_interaction_mask is not None and \
+           road_mask is not None and \
+           traffic_light_mask is not None:
+            fused_mask = torch.cat(
+                [
+                    agent_mask,
+                    agent_interaction_mask,
+                    road_mask,
+                    traffic_light_mask
+                ],
+                dim=1
+            ) # A x (T_hist+T_hist*S_i+S_r+T_hist*S_tls)
+        else:
+            fused_mask = None
+
+        return self.encoder(
+            fused_input,
+            fused_positional_encodings,
+            fused_mask
+        ) # A x sequence_length x D
 
 class HierarchicalFusionSceneEncoder(torch.nn.Module):
     pass

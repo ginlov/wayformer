@@ -8,7 +8,7 @@ grandparent = os.path.dirname(parent)
 sys.path.append(grandparent)
 
 import torch
-from src.wayformer.encoders import Encoder, LatentEncoder, LateFusionSceneEncoder, SceneEncoder
+from src.wayformer.encoders import EarlyFusionSceneEncoder, Encoder, LatentEncoder, LateFusionSceneEncoder, SceneEncoder
 
 ###############################################
 # TEST ENCODER                                #
@@ -92,6 +92,51 @@ def test_latefusion_scene_encoder_with_positional_encodings():
     num_agents, t_hist, s_i, s_r, s_tls, d_model = 2, 3, 4, 5, 6, 8
     nhead, dim_feedforward, num_layers, num_latents = 2, 16, 2, 4
     encoder = LateFusionSceneEncoder(
+        d_model, nhead, dim_feedforward, num_layers, 0.1, num_latents, "multi_axis"
+    )
+    agent_histories = torch.randn(num_agents, t_hist, 1, d_model)
+    agent_interactions = torch.randn(num_agents, t_hist, s_i, d_model)
+    road_graphs = torch.randn(num_agents, 1, s_r, d_model)
+    traffic_lights = torch.randn(num_agents, t_hist, s_tls, d_model)
+    agent_pos_enc = torch.randn(num_agents, t_hist, 1, d_model)
+    agent_int_pos_enc = torch.randn(num_agents, t_hist, s_i, d_model)
+    road_pos_enc = torch.randn(num_agents, 1, s_r, d_model)
+    traffic_light_pos_enc = torch.randn(num_agents, t_hist, s_tls, d_model)
+    out = encoder(
+        agent_histories, agent_interactions, road_graphs, traffic_lights,
+        agent_pos_enc, agent_int_pos_enc, road_pos_enc, traffic_light_pos_enc
+    )
+    assert out.shape[0] == num_agents
+    assert out.shape[-1] == d_model
+
+###############################################
+# TEST EARLY FUSION SCENE ENCODER              #
+###############################################
+
+def test_earlyfusion_scene_encoder_output_shape():
+    """
+    Test that LateFusionSceneEncoder returns the correct output shape.
+    """
+    num_agents, t_hist, s_i, s_r, s_tls, d_model = 3, 4, 5, 6, 7, 8
+    nhead, dim_feedforward, num_layers, num_latents = 2, 16, 2, 4
+    encoder = EarlyFusionSceneEncoder(
+        d_model, nhead, dim_feedforward, num_layers, 0.1, num_latents, "multi_axis"
+    )
+    agent_histories = torch.randn(num_agents, t_hist, 1, d_model)
+    agent_interactions = torch.randn(num_agents, t_hist, s_i, d_model)
+    road_graphs = torch.randn(num_agents, 1, s_r, d_model)
+    traffic_lights = torch.randn(num_agents, t_hist, s_tls, d_model)
+    out = encoder(agent_histories, agent_interactions, road_graphs, traffic_lights)
+    assert out.shape[0] == num_agents
+    assert out.shape[-1] == d_model
+
+def test_earlyfusion_scene_encoder_with_positional_encodings():
+    """
+    Test LateFusionSceneEncoder with positional encodings.
+    """
+    num_agents, t_hist, s_i, s_r, s_tls, d_model = 2, 3, 4, 5, 6, 8
+    nhead, dim_feedforward, num_layers, num_latents = 2, 16, 2, 4
+    encoder = EarlyFusionSceneEncoder(
         d_model, nhead, dim_feedforward, num_layers, 0.1, num_latents, "multi_axis"
     )
     agent_histories = torch.randn(num_agents, t_hist, 1, d_model)
